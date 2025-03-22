@@ -243,7 +243,10 @@ export default function VideoConference() {
           if (!autoReconnectAttempted && errorCountRef.current <= 3) {
             setAutoReconnectAttempted(true);
             console.log('Automatically attempting to recover from context closed error...');
-            setTimeout(() => refreshToken(), 1000);
+            // Use a direct page reload instead of the refreshToken to avoid circular dependency
+            setTimeout(() => {
+              window.location.reload();
+            }, 1000);
           }
         } else if (error.message.includes('insufficient permissions')) {
           setConnectionError('Permission issue detected: Your token lacks necessary video/audio publishing permissions.');
@@ -254,7 +257,10 @@ export default function VideoConference() {
           if (!autoReconnectAttempted && errorCountRef.current <= 3) {
             setAutoReconnectAttempted(true);
             console.log('Automatically attempting to refresh token with proper permissions...');
-            setTimeout(() => refreshToken(), 1000);
+            // Use a direct page reload instead of the refreshToken to avoid circular dependency
+            setTimeout(() => {
+              window.location.reload();
+            }, 1000);
           }
         }
       };
@@ -270,7 +276,10 @@ export default function VideoConference() {
           if (state === ConnectionState.Failed && !autoReconnectAttempted && errorCountRef.current <= 3) {
             setAutoReconnectAttempted(true);
             console.log('Connection failed, attempting automatic recovery...');
-            setTimeout(() => refreshToken(), 1000);
+            // Use a direct page reload instead of the refreshToken to avoid circular dependency
+            setTimeout(() => {
+              window.location.reload();
+            }, 1000);
           }
         }
       });
@@ -292,7 +301,7 @@ export default function VideoConference() {
         }
       };
     }
-  }, [roomContext?.room, refreshToken, autoReconnectAttempted]);
+  }, [roomContext?.room, autoReconnectAttempted]);
 
   // Reset counters when component remounts
   useEffect(() => {
@@ -441,7 +450,12 @@ export default function VideoConference() {
   // Get a new token with proper permissions
   const refreshToken = useCallback(async () => {
     try {
-      if (!roomContext?.room) return;
+      // Safety check - make sure room context and current refs are available
+      if (!roomContext?.room || !userIdentityRef.current || !roomNameRef.current) {
+        console.error('Cannot refresh token: room context or identity information missing');
+        setConnectionError('Cannot reconnect: missing room information. Please refresh the page manually.');
+        return;
+      }
       
       // Store room information before disconnecting
       if (roomContext.room.localParticipant) {
@@ -513,9 +527,9 @@ export default function VideoConference() {
           setAutoReconnectAttempted(true);
           console.log('Attempting automatic recovery from LiveKit error...');
           
-          // Delay slightly to avoid immediate refresh that might cause issues
+          // Use a direct page reload instead of calling refreshToken to avoid circular dependency
           setTimeout(() => {
-            refreshToken();
+            window.location.reload();
           }, 1000);
         }
       }
@@ -526,7 +540,7 @@ export default function VideoConference() {
     return () => {
       window.removeEventListener('error', handleGlobalError);
     };
-  }, [refreshToken, autoReconnectAttempted]);
+  }, [autoReconnectAttempted]);
 
   // Render component
   return (
