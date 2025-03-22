@@ -1,36 +1,80 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Thought Partners: Collaborative Whiteboard with Video Conferencing
 
-## Getting Started
+A real-time collaborative application built with Next.js that combines a whiteboard using TLDraw and video conferencing with LiveKit. 
 
-First, run the development server:
+## Features
+
+- **Real-time whiteboard collaboration** using TLDraw
+- **Video conferencing** with LiveKit for real-time communication
+- **Room-based collaboration** where users can join specific rooms 
+- **Authentication** with user identity and LiveKit tokens
+
+## Prerequisites
+
+Before running this application, you'll need:
+
+1. A LiveKit account and API keys (get them at [LiveKit Cloud](https://livekit.io/cloud))
+2. Node.js 18+ installed on your machine
+
+## Environment Setup
+
+Create a `.env.local` file in the root directory with the following variables:
+
+```bash
+# LiveKit Configuration
+NEXT_PUBLIC_LIVEKIT_URL=wss://your-livekit-url.livekit.cloud
+LIVEKIT_API_KEY=your_api_key
+LIVEKIT_API_SECRET=your_api_secret
+```
+
+## Installation
+
+1. Clone the repository
+2. Install dependencies:
+
+```bash
+npm install
+```
+
+## Development
+
+Run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the application.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Using the Application
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Navigate to `/whiteboard/[roomId]` where `[roomId]` is any unique identifier for your room
+2. Enter your name to join the room
+3. Use the whiteboard on the left side for drawing and collaboration
+4. The video conference will appear on the right side, allowing you to see and speak with other participants in the room
 
-## Learn More
+## Architecture
 
-To learn more about Next.js, take a look at the following resources:
+- **Frontend**: Next.js with React 19
+- **Whiteboard**: TLDraw for collaborative drawing
+- **Video**: LiveKit for WebRTC-based video conferencing
+- **Authentication**: LiveKit tokens for secure room access
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Future Enhancements
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- Adding persistence for whiteboard content
+- Implementing true real-time collaboration for the whiteboard using Yjs
+- Adding chat functionality
+- Implementing recording capabilities for sessions
 
-## Deploy on Vercel
+## Deployment
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+The application can be deployed on Vercel or any other hosting service that supports Next.js.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npm run build
+```
+
+## License
+
+[MIT](https://choosealicense.com/licenses/mit/)
