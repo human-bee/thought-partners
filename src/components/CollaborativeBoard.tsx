@@ -1,20 +1,63 @@
-import { Tldraw, TldrawEditor, createTLStore, defaultShapeUtils, useEditor } from 'tldraw';
-import { useEffect, useState, useCallback } from 'react';
+import { Tldraw, createTLStore, defaultShapeUtils } from 'tldraw';
+import { useEffect, useState, useCallback, useMemo, useRef, memo } from 'react';
 import 'tldraw/tldraw.css';
 import { useLocalParticipant, useRoomContext } from '@livekit/components-react';
+
+// Add render counter
+let renderCount = 0;
 
 interface CollaborativeBoardProps {
   roomId: string;
 }
 
-export default function CollaborativeBoard({ roomId }: CollaborativeBoardProps) {
+// Wrap with memo to prevent unnecessary rerenders
+const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: CollaborativeBoardProps) {
+  // Debug: Track renders
+  const renderCountRef = useRef(0);
+  renderCount++;
+  renderCountRef.current++;
+  
+  console.time(`CollaborativeBoard render ${renderCountRef.current}`);
+  
   const [store, setStore] = useState<ReturnType<typeof createTLStore> | null>(null);
   const localParticipantData = useLocalParticipant();
   const roomContext = useRoomContext();
   const localParticipant = localParticipantData?.localParticipant;
+  const storeInitializedRef = useRef(false);
 
-  // Initialize TLDraw store
+  // Debug: Track state changes
+  const prevStoreRef = useRef(store);
+  const prevRoomContextRef = useRef(roomContext);
+  const prevLocalParticipantRef = useRef(localParticipant);
+  
   useEffect(() => {
+    if (prevStoreRef.current !== store) {
+      console.log('CollaborativeBoard: store changed');
+      prevStoreRef.current = store;
+    }
+    if (prevRoomContextRef.current !== roomContext) {
+      console.log('CollaborativeBoard: roomContext changed');
+      prevRoomContextRef.current = roomContext;
+    }
+    if (prevLocalParticipantRef.current !== localParticipant) {
+      console.log('CollaborativeBoard: localParticipant changed');
+      prevLocalParticipantRef.current = localParticipant;
+    }
+  }, [store, roomContext, localParticipant]);
+  
+  // Debug: Log unmounting
+  useEffect(() => {
+    return () => {
+      console.log(`CollaborativeBoard unmounting: render count was ${renderCountRef.current}`);
+    };
+  }, []);
+
+  // Initialize TLDraw store only once
+  useEffect(() => {
+    // Skip if already initialized
+    if (storeInitializedRef.current) return;
+    storeInitializedRef.current = true;
+    
     const newStore = createTLStore({
       shapeUtils: defaultShapeUtils,
     });
@@ -30,9 +73,9 @@ export default function CollaborativeBoard({ roomId }: CollaborativeBoardProps) 
     };
   }, []);
 
-  // Set up LiveKit data channel for store synchronization
+  // Set up LiveKit data channel for store synchronization with stable dependencies
   useEffect(() => {
-    if (!store || !roomContext?.room) return;
+    if (!store || !roomContext?.room || !roomContext.room.dataReceived) return;
     
     const room = roomContext.room;
     
@@ -72,7 +115,13 @@ export default function CollaborativeBoard({ roomId }: CollaborativeBoardProps) 
     };
   }, [store, roomContext]);
 
-  // Send local changes to other participants
+  // Memoize publishData function to reduce dependency changes
+  const publishData = useCallback((data: string, topic: string) => {
+    if (!localParticipant) return;
+    localParticipant.publishData(data, topic);
+  }, [localParticipant]);
+
+  // Handle editor changes with stable dependencies
   const handleEditorChange = useCallback((editor: any) => {
     if (!localParticipant || !roomContext?.room) return;
     
@@ -81,8 +130,8 @@ export default function CollaborativeBoard({ roomId }: CollaborativeBoardProps) 
       const changes = editor.getChanges();
       if (changes.length === 0) return;
       
-      // Send changes to other participants
-      localParticipant.publishData(
+      // Send changes to other participants using memoized function
+      publishData(
         JSON.stringify({
           type: 'tlDrawUpdate',
           changes: changes,
@@ -92,17 +141,28 @@ export default function CollaborativeBoard({ roomId }: CollaborativeBoardProps) 
     } catch (error) {
       console.error('Error publishing drawing updates:', error);
     }
-  }, [localParticipant, roomContext]);
+  }, [localParticipant, roomContext, publishData]);
 
-  if (!store) return <div>Loading whiteboard...</div>;
+  // Memoize the entire Tldraw component to prevent unnecessary re-renders
+  const tldrawComponent = useMemo(() => {
+    if (!store) return <div>Loading whiteboard...</div>;
 
-  return (
-    <div className="h-full w-full">
+    return (
       <Tldraw
         store={store}
         persistenceKey={roomId}
         onEditorStateChange={handleEditorChange}
       />
+    );
+  }, [store, roomId, handleEditorChange]);
+
+  console.timeEnd(`CollaborativeBoard render ${renderCountRef.current}`);
+  
+  return (
+    <div className="h-full w-full">
+      {tldrawComponent}
     </div>
   );
-} 
+});
+
+export default CollaborativeBoard; 

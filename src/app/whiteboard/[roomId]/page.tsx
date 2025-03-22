@@ -12,6 +12,7 @@ const VideoConference = dynamic(() => import('@/components/VideoConference'), { 
 const Transcription = dynamic(() => import('@/components/Transcription'), { ssr: false });
 const LiveKitRoom = dynamic(() => import('@livekit/components-react').then(mod => mod.LiveKitRoom), { ssr: false });
 const LiveKitInitializer = dynamic(() => import('@/components/LiveKitInitializer'), { ssr: false });
+const VideoConferenceProvider = dynamic(() => import('@/contexts/VideoConferenceContext').then(mod => mod.VideoConferenceProvider), { ssr: false });
 
 export default function WhiteboardRoom() {
   const params = useParams();
@@ -224,7 +225,7 @@ export default function WhiteboardRoom() {
       >
         <LiveKitInitializer />
         <div className="flex flex-col md:flex-row h-full">
-          <div className={`${showVideoPanel ? 'w-full md:w-3/4' : 'w-full'} h-full relative`}>
+          <div className={`${showVideoPanel ? 'w-full md:w-1/2' : 'w-full'} h-full relative`}>
             <CollaborativeBoard roomId={roomId} />
             
             {showTranscription && (
@@ -268,8 +269,25 @@ export default function WhiteboardRoom() {
             </div>
           </div>
           {showVideoPanel && (
-            <div className="w-full md:w-1/4 h-60 md:h-full">
-              <VideoConference />
+            <div className={`w-full md:w-1/2 bg-black relative`}>
+              <VideoConferenceProvider 
+                roomOptions={{
+                  adaptiveStream: true,
+                  dynacast: true,
+                  videoCaptureDefaults: {
+                    resolution: { width: 640, height: 480 },
+                    facingMode: 'user'
+                  },
+                  audioCaptureDefaults: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                  }
+                }}
+                roomName={roomId}
+              >
+                <VideoConference />
+              </VideoConferenceProvider>
             </div>
           )}
         </div>
