@@ -1,5 +1,5 @@
 // Simple script to test LiveKit token generation
-require('dotenv').config({ path: '.env.local' });
+require('dotenv').config({ path: './thought-partners/.env.local' });
 const { AccessToken } = require('livekit-server-sdk');
 
 // Get LiveKit credentials from environment
@@ -9,8 +9,8 @@ const url = process.env.NEXT_PUBLIC_LIVEKIT_URL;
 
 console.log('Testing LiveKit token generation with:');
 console.log('API Key:', apiKey ? apiKey.substring(0, 5) + '...' : 'MISSING');
-console.log('API Secret:', apiSecret ? 'Present (length: ' + apiSecret.length + ')' : 'MISSING');
-console.log('URL:', url);
+console.log('API Secret:', apiSecret ? 'PRESENT' : 'MISSING');
+console.log('URL:', url || 'undefined');
 
 if (!apiKey || !apiSecret) {
   console.error('ERROR: Missing LiveKit credentials in environment variables!');
@@ -55,5 +55,5 @@ async function testTokenGeneration() {
   }
 }
 
-// Run the async test function
+// Run the test
 testTokenGeneration(); 
