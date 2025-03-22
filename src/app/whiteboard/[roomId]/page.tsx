@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { LiveKitRoom } from '@livekit/components-react';
+import CollaborativeBoard from '@/components/CollaborativeBoard';
+import VideoConference from '@/components/VideoConference';
 import { useParams } from 'next/navigation';
 
 export default function WhiteboardPage() {
@@ -64,14 +66,14 @@ export default function WhiteboardPage() {
             serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
             token={token}
           >
-            <div className="text-white">Video Conference Component Would Go Here</div>
+            <VideoConference />
           </LiveKitRoom>
         )}
       </div>
 
       {/* Whiteboard Section */}
-      <div className="w-3/4 h-full bg-gray-100">
-        <div className="text-center p-8">Whiteboard Component Would Go Here</div>
+      <div className="w-3/4 h-full">
+        <CollaborativeBoard roomName={roomId} token={token} />
       </div>
     </div>
   );
