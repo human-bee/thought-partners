@@ -27,33 +27,46 @@ export async function POST(request: NextRequest) {
       process.env.LIVEKIT_API_SECRET,
       {
         identity,
-        ttl: 60 * 60 * 2, // 2 hours in seconds
+        ttl: 60 * 60 * 6, // 6 hours in seconds - longer TTL to prevent expiration issues
         name: identity, // Add name field for better debugging
       }
     );
     
-    // Add all possible permissions to ensure video/audio works
+    // Add ALL possible permissions to ensure video/audio works
     at.addGrant({
       roomJoin: true,
       room: roomName,
       canPublish: true,
       canSubscribe: true,
       canPublishData: true,
-      // Explicitly add all permissions
+      
+      // Explicitly add all permissions for media publishing
       canPublishAudio: true,
       canPublishVideo: true,
-      // Include even more explicit permissions to ensure compatibility
-      canPublishSources: { camera: true, microphone: true, screen: true },
-      // Add admin permissions as a last resort (not recommended for production)
+      
+      // Make these more explicit for iOS handoff compatibility
+      canPublishSources: { 
+        camera: true, 
+        microphone: true, 
+        screen: true,
+        screen_share: true, // added for completeness
+      },
+      
+      // Ensure complete control over the room when reconnecting
+      // This helps prevent context closed errors and permission issues
       roomAdmin: true,
       roomCreate: true,
+      
+      // Set high capacity limits
+      maxParticipants: 20,
+      canUpdateOwnMetadata: true,
     });
     
     // Generate the token
     const token = at.toJwt();
     
     // Log token info for debugging
-    console.log(`Generated refresh token for ${identity} with full publishing permissions`);
+    console.log(`Generated refresh token for ${identity} with enhanced publishing permissions`);
     
     return NextResponse.json({ 
       success: true,

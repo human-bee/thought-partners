@@ -59,6 +59,7 @@ export default function VideoConference() {
   const [needsReconnect, setNeedsReconnect] = useState(false); 
   const [permissionsError, setPermissionsError] = useState(false);
   const [isRefreshingToken, setIsRefreshingToken] = useState(false);
+  const [autoReconnectAttempted, setAutoReconnectAttempted] = useState(false);
   
   // Manually track devices instead of using potentially problematic hook
   const [videoInputs, setVideoInputs] = useState<MediaDeviceInfo[]>([]);
@@ -66,6 +67,10 @@ export default function VideoConference() {
   
   // Pre-define reference to break circular dependency
   const changeVideoDeviceRef = useRef<(deviceId: string) => Promise<void>>();
+  
+  const userIdentityRef = useRef<string | null>(null);
+  const roomNameRef = useRef<string | null>(null);
+  const errorCountRef = useRef(0);
   
   // Fetch available devices manually
   const fetchDevices = useCallback(async () => {
@@ -226,21 +231,55 @@ export default function VideoConference() {
       
       const handleError = (error: Error) => {
         console.error('LiveKit room error:', error);
+        
+        // Increment error counter to prevent too many reconnection attempts
+        errorCountRef.current += 1;
+        
         if (error.message.includes('Context is closed')) {
           setConnectionError('Connection issue detected. Please refresh the page if video is not working.');
           setNeedsReconnect(true);
+          
+          // Automatically attempt to refresh token after first context closed error
+          if (!autoReconnectAttempted && errorCountRef.current <= 3) {
+            setAutoReconnectAttempted(true);
+            console.log('Automatically attempting to recover from context closed error...');
+            setTimeout(() => refreshToken(), 1000);
+          }
         } else if (error.message.includes('insufficient permissions')) {
           setConnectionError('Permission issue detected: Your token lacks necessary video/audio publishing permissions.');
           setPermissionsError(true);
           console.log('Debug - Current permissions:', roomContext.room.localParticipant.permissions);
+          
+          // Automatically attempt to refresh token after permission error
+          if (!autoReconnectAttempted && errorCountRef.current <= 3) {
+            setAutoReconnectAttempted(true);
+            console.log('Automatically attempting to refresh token with proper permissions...');
+            setTimeout(() => refreshToken(), 1000);
+          }
         }
       };
       
+      // Catch all possible error events
       roomContext.room.on(RoomEvent.MediaDevicesError, handleError);
       roomContext.room.on(RoomEvent.TrackPublicationError, handleError);
       roomContext.room.on(RoomEvent.ConnectionStateChanged, (state) => {
         if (state === ConnectionState.Disconnected || state === ConnectionState.Failed) {
           setNeedsReconnect(true);
+          
+          // Auto reconnect on disconnection
+          if (state === ConnectionState.Failed && !autoReconnectAttempted && errorCountRef.current <= 3) {
+            setAutoReconnectAttempted(true);
+            console.log('Connection failed, attempting automatic recovery...');
+            setTimeout(() => refreshToken(), 1000);
+          }
+        }
+      });
+      
+      // Additional error handlers for audio context issues
+      roomContext.room.on(RoomEvent.AudioPlaybackStatusChanged, (status) => {
+        console.log('Audio playback status changed:', status);
+        if (!status) {
+          console.warn('Audio playback stopped - this might indicate a context closed error');
         }
       });
       
@@ -249,33 +288,28 @@ export default function VideoConference() {
           roomRef.current.off(RoomEvent.MediaDevicesError, handleError);
           roomRef.current.off(RoomEvent.TrackPublicationError, handleError);
           roomRef.current.off(RoomEvent.ConnectionStateChanged);
+          roomRef.current.off(RoomEvent.AudioPlaybackStatusChanged);
         }
       };
     }
-  }, [roomContext?.room]);
-  
-  // Add reconnection logic
+  }, [roomContext?.room, refreshToken, autoReconnectAttempted]);
+
+  // Reset counters when component remounts
   useEffect(() => {
-    if (needsReconnect && roomRef.current) {
-      const reconnectTimer = setTimeout(async () => {
+    errorCountRef.current = 0;
+    setAutoReconnectAttempted(false);
+    
+    // Clean up on unmount
+    return () => {
+      if (roomRef.current && roomRef.current.isConnected) {
         try {
-          if (roomRef.current && !roomRef.current.isConnected) {
-            console.log('Attempting to reconnect to LiveKit room...');
-            await roomRef.current.reconnect();
-            setNeedsReconnect(false);
-            setConnectionError('Reconnected successfully!');
-            // Clear error message after a delay
-            setTimeout(() => setConnectionError(null), 3000);
-          }
-        } catch (error) {
-          console.error('Failed to reconnect:', error);
-          setConnectionError('Failed to reconnect. Please refresh the page.');
+          roomRef.current.disconnect(true);
+        } catch (e) {
+          console.warn('Error during cleanup:', e);
         }
-      }, 3000);
-      
-      return () => clearTimeout(reconnectTimer);
-    }
-  }, [needsReconnect]);
+      }
+    };
+  }, []);
   
   // Enable camera function with better error handling
   const enableCamera = useCallback(async () => {
@@ -454,20 +488,64 @@ export default function VideoConference() {
     }
   }, [roomContext?.room]);
 
+  // Global error handler for LiveKit errors - capture errors that might occur outside Room context
+  useEffect(() => {
+    const handleGlobalError = async (event: ErrorEvent) => {
+      if (event.error?.message?.includes('Context is closed') || 
+          event.error?.message?.includes('insufficient permissions') ||
+          event.error?.stack?.includes('livekit-client_esm_mjs')) {
+        
+        console.warn('Detected LiveKit error via window event:', event.error);
+        
+        // Don't try auto-reconnection too many times
+        errorCountRef.current += 1;
+        
+        if (errorCountRef.current > 5) {
+          console.error('Too many LiveKit errors, please refresh the page manually');
+          return;
+        }
+        
+        // Handle context closed errors automatically by attempting token refresh
+        if (!autoReconnectAttempted && 
+           (event.error?.message?.includes('Context is closed') || 
+            event.error?.message?.includes('insufficient permissions'))) {
+          
+          setAutoReconnectAttempted(true);
+          console.log('Attempting automatic recovery from LiveKit error...');
+          
+          // Delay slightly to avoid immediate refresh that might cause issues
+          setTimeout(() => {
+            refreshToken();
+          }, 1000);
+        }
+      }
+    };
+    
+    window.addEventListener('error', handleGlobalError);
+    
+    return () => {
+      window.removeEventListener('error', handleGlobalError);
+    };
+  }, [refreshToken, autoReconnectAttempted]);
+
   // Render component
   return (
     <div className="flex flex-col h-full overflow-hidden bg-gray-900 relative">
       <RoomAudioRenderer />
       
-      {connectionError && (
+      {(connectionError || isRefreshingToken) && 
         <div className="absolute top-0 left-0 right-0 bg-red-600 text-white p-2 z-50">
-          <p className="text-center">{connectionError}</p>
-          {permissionsError && (
+          <p className="text-center">
+            {isRefreshingToken 
+              ? 'Attempting to reconnect with new permissions... Please wait.' 
+              : connectionError}
+          </p>
+          {permissionsError && !isRefreshingToken && !autoReconnectAttempted && (
             <div className="flex flex-col items-center mt-2">
               <div className="flex justify-center mb-2 space-x-2">
                 <button 
                   onClick={refreshToken}
-                  disabled={isRefreshingToken}
+                  disabled={isRefreshingToken || autoReconnectAttempted}
                   className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1 rounded transition-colors"
                 >
                   {isRefreshingToken ? 'Reconnecting...' : 'Reconnect with New Token'}
@@ -495,8 +573,21 @@ export default function VideoConference() {
               </p>
             </div>
           )}
+          {autoReconnectAttempted && !isRefreshingToken && (
+            <div className="text-center mt-2">
+              <p className="text-sm">
+                Automatic recovery attempted. If issues persist, please refresh the page manually.
+              </p>
+              <button 
+                onClick={() => window.location.reload()}
+                className="mt-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-1 rounded transition-colors"
+              >
+                Refresh Page
+              </button>
+            </div>
+          )}
         </div>
-      )}
+      }
       
       {showDeviceSelector && (
         <div className="m-4 p-3 bg-gray-800 text-white text-sm rounded-md">
