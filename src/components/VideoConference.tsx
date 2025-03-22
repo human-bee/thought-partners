@@ -14,9 +14,10 @@ import {
   LayoutContextProvider,
   ParticipantTile
 } from '@livekit/components-react';
-import { Room, RoomEvent, LocalTrackPublication, Participant, Track as LKTrack, VideoPresets } from 'livekit-client';
+import { Room, RoomEvent, LocalTrackPublication, Participant, Track as LKTrack, VideoPresets, ConnectionState as RoomConnectionState } from 'livekit-client';
 import '@livekit/components-styles';
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useConnectionState as useVideoConferenceConnectionState, useRoomContext as useVideoConferenceRoomContext, useLocalParticipant as useVideoConferenceLocalParticipant } from '@/contexts/VideoConferenceContext';
 
 // Safe component to wrap LiveKit's VideoConference component
 const SafeVideoConference = () => {
@@ -47,10 +48,10 @@ interface MediaDeviceInfo {
 }
 
 export default function VideoConference() {
-  const connectionState = useConnectionState();
+  const connectionState = useVideoConferenceConnectionState();
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  const roomContext = useRoomContext();
-  const { localParticipant } = useLocalParticipant();
+  const roomContext = useVideoConferenceRoomContext();
+  const { localParticipant } = useVideoConferenceLocalParticipant();
   
   const [cameraEnabled, setCameraEnabled] = useState(false);
   const [micEnabled, setMicEnabled] = useState(false);
@@ -73,6 +74,123 @@ export default function VideoConference() {
   const userIdentityRef = useRef<string | null>(null);
   const roomNameRef = useRef<string | null>(null);
   const errorCountRef = useRef(0);
+  
+  // Add persistent storage for room info
+  const storeRoomInfo = useCallback((roomName: string, identity: string) => {
+    try {
+      // Store in session storage
+      sessionStorage.setItem('livekit_room_name', roomName);
+      sessionStorage.setItem('livekit_identity', identity);
+      // Update refs
+      userIdentityRef.current = identity;
+      roomNameRef.current = roomName;
+      console.log(`Stored room info: room=${roomName}, identity=${identity}`);
+    } catch (e) {
+      console.warn('Failed to store room info:', e);
+    }
+  }, []);
+
+  // Add retrieval function for room info
+  const getRoomInfo = useCallback(() => {
+    try {
+      // Try refs first
+      let roomName = roomNameRef.current;
+      let identity = userIdentityRef.current;
+
+      // Try session storage if refs are empty
+      if (!roomName) {
+        roomName = sessionStorage.getItem('livekit_room_name');
+      }
+      if (!identity) {
+        identity = sessionStorage.getItem('livekit_identity');
+      }
+
+      // Try room context as last resort
+      if (!roomName && roomContext?.room) {
+        roomName = roomContext.room.name;
+      }
+      if (!identity && roomContext?.room?.localParticipant) {
+        identity = roomContext.room.localParticipant.identity;
+      }
+
+      return { roomName: roomName || null, identity: identity || null };
+    } catch (e) {
+      console.warn('Failed to retrieve room info:', e);
+      return { roomName: null, identity: null };
+    }
+  }, [roomContext?.room]);
+  
+  // Immediately capture room info on mount - add at the very beginning of the component
+  useEffect(() => {
+    console.log('Component mounted - attempting early room info capture');
+    
+    // Attempt to get session storage token info if available
+    try {
+      const storedToken = sessionStorage.getItem('livekit_token');
+      if (storedToken) {
+        console.log('Found stored token in session storage');
+        // Try to decode token to extract room and identity (simplified jwt decode)
+        try {
+          const tokenParts = storedToken.split('.');
+          if (tokenParts.length === 3) {
+            const payload = JSON.parse(atob(tokenParts[1]));
+            if (payload.video?.room && payload.sub) {
+              console.log('Successfully extracted room info from token:', payload.video.room, payload.sub);
+              roomNameRef.current = payload.video.room;
+              userIdentityRef.current = payload.sub;
+            }
+          }
+        } catch (e) {
+          console.warn('Could not decode token:', e);
+        }
+      }
+    } catch (e) {
+      console.warn('Error checking session storage:', e);
+    }
+    
+    // Set up a periodic check for room context until it's available
+    const checkInterval = setInterval(() => {
+      if (roomContext?.room && roomContext.room.localParticipant) {
+        console.log('Room context became available via interval check');
+        userIdentityRef.current = roomContext.room.localParticipant.identity;
+        roomNameRef.current = roomContext.room.name;
+        clearInterval(checkInterval);
+      }
+    }, 500);
+    
+    // Clear interval on unmount
+    return () => clearInterval(checkInterval);
+  }, []);
+
+  // Add immediate context monitor after room context or localParticipant changes
+  useEffect(() => {
+    if (roomContext?.room || localParticipant) {
+      console.log('Room context or participant changed:', !!roomContext?.room, !!localParticipant);
+      
+      if (roomContext?.room?.localParticipant) {
+        userIdentityRef.current = roomContext.room.localParticipant.identity;
+        roomNameRef.current = roomContext.room.name;
+        console.log(`Room info updated from context: room=${roomNameRef.current}, identity=${userIdentityRef.current}`);
+      } else if (localParticipant) {
+        userIdentityRef.current = localParticipant.identity;
+        if (roomContext?.room) {
+          roomNameRef.current = roomContext.room.name;
+        }
+        console.log(`Room info updated from localParticipant: identity=${userIdentityRef.current}, room=${roomNameRef.current}`);
+      }
+      
+      // If room context available, check permissions directly
+      if (roomContext?.room?.localParticipant?.permissions) {
+        const perms = roomContext.room.localParticipant.permissions;
+        console.log('Current participant permissions:', JSON.stringify(perms));
+        
+        if (!perms.canPublish || !perms.canPublishVideo) {
+          console.warn('Insufficient permissions detected early, planning refresh');
+          setPermissionsError(true);
+        }
+      }
+    }
+  }, [roomContext?.room, localParticipant]);
   
   // Fetch available devices manually
   const fetchDevices = useCallback(async () => {
@@ -182,24 +300,28 @@ export default function VideoConference() {
     }
   }, [localParticipant, cameraEnabled]);
   
-  // Get a new token with proper permissions
+  // Modify the refreshToken function to use the new helpers
   const refreshToken = useCallback(async () => {
     try {
-      // Safety check - make sure room context and current refs are available
-      if (!roomContext?.room || !userIdentityRef.current || !roomNameRef.current) {
-        console.error('Cannot refresh token: room context or identity information missing');
-        setConnectionError('Cannot reconnect: missing room information. Please refresh the page manually.');
-        return;
-      }
+      console.log('Starting token refresh process...');
       
-      // Store room information before disconnecting
-      if (roomContext.room.localParticipant) {
-        userIdentityRef.current = roomContext.room.localParticipant.identity;
-        roomNameRef.current = roomContext.room.name;
+      // Get room info using our new helper
+      const { roomName, identity } = getRoomInfo();
+      
+      if (!identity || !roomName) {
+        console.error('Cannot refresh token: missing identity or room information', { 
+          identity, 
+          roomName,
+          hasRoomContext: !!roomContext?.room
+        });
+        
+        setConnectionError('Cannot reconnect: missing identity or room information. Please refresh the page manually.');
+        return;
       }
       
       // Set state to show loading
       setIsRefreshingToken(true);
+      console.log(`Refreshing token for room=${roomName}, identity=${identity}`);
       
       // Get a new token with explicit publishing permissions
       const response = await fetch('/api/refresh-token', {
@@ -208,34 +330,43 @@ export default function VideoConference() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          roomName: roomNameRef.current,
-          identity: userIdentityRef.current,
+          roomName,
+          identity,
         }),
       });
       
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Token refresh API returned error:', response.status, errorText);
+        throw new Error(`API error: ${response.status} ${errorText}`);
+      }
+      
       const data = await response.json();
       
-      if (!response.ok || !data.token) {
-        throw new Error(data.error || 'Failed to get new token');
+      if (!data.token) {
+        console.error('Token refresh API returned invalid data:', data);
+        throw new Error('API did not return a valid token');
       }
       
-      // Disconnect properly from the room
-      if (roomContext.room.isConnected) {
-        await roomContext.room.disconnect(true);
-      }
+      console.log('Successfully obtained new token with proper permissions');
       
-      // Reconnect with the new token (by reloading the page)
-      console.log('Got new token with proper permissions, reloading page...');
+      // Store the new token
       sessionStorage.setItem('livekit_token', data.token);
-      window.location.reload();
+      
+      // Store room info again to ensure persistence
+      storeRoomInfo(roomName, identity);
+      
+      // Show success message
+      setConnectionError('New token obtained successfully. Please click "Refresh Page" button to reload with new permissions.');
       
     } catch (error) {
       console.error('Error refreshing token:', error);
-      setConnectionError('Failed to get a new token. Please refresh the page manually.');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      setConnectionError(`Failed to get a new token: ${errorMessage}. Please refresh the page manually.`);
     } finally {
       setIsRefreshingToken(false);
     }
-  }, [roomContext?.room]);
+  }, [roomContext?.room, getRoomInfo, storeRoomInfo]);
 
   // Store the refreshToken function in the ref to break circular dependency
   useEffect(() => {
@@ -284,15 +415,15 @@ export default function VideoConference() {
     }
   }, [videoInputs, fetchDevices]); // Removed changeVideoDevice dependency
   
-  // Store room reference to prevent context closed errors
+  // Update the room effect to use the new storage helpers
   useEffect(() => {
     if (roomContext?.room) {
-      roomRef.current = roomContext.room;
+      const room = roomContext.room; // Store reference to avoid null checks
+      roomRef.current = room;
       
-      // Store room information for reconnection
-      if (roomContext.room.localParticipant) {
-        userIdentityRef.current = roomContext.room.localParticipant.identity;
-        roomNameRef.current = roomContext.room.name;
+      // Store room information using our new helper
+      if (room.localParticipant) {
+        storeRoomInfo(room.name, room.localParticipant.identity);
       }
       
       const handleError = (error: Error) => {
@@ -314,32 +445,16 @@ export default function VideoConference() {
               window.location.reload();
             }, 1000);
           }
-        } else if (error.message.includes('insufficient permissions')) {
-          setConnectionError('Permission issue detected: Your token lacks necessary video/audio publishing permissions.');
-          setPermissionsError(true);
-          console.log('Debug - Current permissions:', roomContext.room.localParticipant.permissions);
-          
-          // Automatically attempt to refresh token after permission error
-          if (!autoReconnectAttempted && errorCountRef.current <= 3) {
-            setAutoReconnectAttempted(true);
-            console.log('Automatically attempting to refresh token with proper permissions...');
-            // Use a direct page reload instead of the refreshToken to avoid circular dependency
-            setTimeout(() => {
-              window.location.reload();
-            }, 1000);
-          }
         }
       };
       
-      // Catch all possible error events
-      roomContext.room.on(RoomEvent.MediaDevicesError, handleError);
-      roomContext.room.on(RoomEvent.TrackPublicationError, handleError);
-      roomContext.room.on(RoomEvent.ConnectionStateChanged, (state) => {
-        if (state === ConnectionState.Disconnected || state === ConnectionState.Failed) {
+      // Store handler references for cleanup
+      const handleConnectionStateChange = (state: RoomConnectionState) => {
+        if (state === 'disconnected' || state === 'failed') {
           setNeedsReconnect(true);
           
           // Auto reconnect on disconnection
-          if (state === ConnectionState.Failed && !autoReconnectAttempted && errorCountRef.current <= 3) {
+          if (state === 'failed' && !autoReconnectAttempted && errorCountRef.current <= 3) {
             setAutoReconnectAttempted(true);
             console.log('Connection failed, attempting automatic recovery...');
             // Use a direct page reload instead of the refreshToken to avoid circular dependency
@@ -348,26 +463,24 @@ export default function VideoConference() {
             }, 1000);
           }
         }
-      });
+      };
+
+      // Add event listeners
+      room.on(RoomEvent.ConnectionStateChanged, handleConnectionStateChange);
+      room.on(RoomEvent.MediaDevicesError, handleError);
       
-      // Additional error handlers for audio context issues
-      roomContext.room.on(RoomEvent.AudioPlaybackStatusChanged, (status) => {
-        console.log('Audio playback status changed:', status);
-        if (!status) {
-          console.warn('Audio playback stopped - this might indicate a context closed error');
-        }
-      });
-      
+      // Clean up when component unmounts
       return () => {
-        if (roomRef.current) {
-          roomRef.current.off(RoomEvent.MediaDevicesError, handleError);
-          roomRef.current.off(RoomEvent.TrackPublicationError, handleError);
-          roomRef.current.off(RoomEvent.ConnectionStateChanged);
-          roomRef.current.off(RoomEvent.AudioPlaybackStatusChanged);
+        room.off(RoomEvent.ConnectionStateChanged, handleConnectionStateChange);
+        room.off(RoomEvent.MediaDevicesError, handleError);
+        
+        // Clean up room if still connected
+        if (room.state !== 'disconnected') {
+          room.disconnect();
         }
       };
     }
-  }, [roomContext?.room, autoReconnectAttempted]);
+  }, [roomContext?.room, autoReconnectAttempted, storeRoomInfo]);
 
   // Reset counters when component remounts
   useEffect(() => {
@@ -386,25 +499,188 @@ export default function VideoConference() {
     };
   }, []);
   
-  // Enable camera function with better error handling
+  // Enable camera function with better error handling and permission checking
   const enableCamera = useCallback(async () => {
     try {
-      if (!localParticipant) return;
-      
-      console.log('Starting camera enable sequence...');
-      
-      // Validate participant permissions first
-      if (localParticipant.permissions) {
-        const permissions = localParticipant.permissions;
-        if (!permissions.canPublish || !permissions.canPublishVideo) {
-          console.error('Token has insufficient permissions to publish video');
-          throw new Error('insufficient permissions');
+      // If localParticipant is not available, try to wait for it
+      if (!localParticipant) {
+        console.warn('localParticipant not immediately available, attempting to wait...');
+        setConnectionError('Connecting to video system, please wait...');
+        
+        // Check if we have room context at least
+        if (roomContext?.room) {
+          console.log('Room context is available, attempting to reconnect or refresh participant...');
+          
+          // Try to ensure room is connected
+          if (roomContext.room.state !== ConnectionState.Connected) {
+            try {
+              console.log('Room not connected, attempting to reconnect...');
+              await roomContext.room.reconnect();
+              console.log('Room reconnection completed');
+              
+              // Small delay to let participant info update
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            } catch (e) {
+              console.warn('Room reconnection failed:', e);
+            }
+          }
+          
+          // Even if we have room but no participant, wait a moment and try again
+          if (!roomContext.room.localParticipant) {
+            console.log('Still no localParticipant, refreshing page may be needed...');
+            setConnectionError('Connection issue detected. Please refresh the page and try again.');
+            return;
+          } else {
+            // We found localParticipant through roomContext
+            console.log('Found localParticipant through roomContext');
+            // Continue with the roomContext's localParticipant
+            const participant = roomContext.room.localParticipant;
+            
+            // The rest of the function will use this participant instead
+            // Start camera enable with this participant
+            console.log('Starting camera enable sequence with recovered participant...');
+            
+            // Log available room information
+            console.log('Room info before enabling camera:', {
+              hasRoomContext: true,
+              contextIdentity: participant.identity,
+              hasPermissions: !!participant.permissions
+            });
+            
+            // Validate participant permissions first - do a comprehensive check
+            let permissionsValid = true;
+            
+            if (participant.permissions) {
+              const permissions = participant.permissions;
+              console.log('Camera enable - current permissions:', JSON.stringify(permissions));
+              
+              // Check all relevant publishing permissions
+              if (!permissions.canPublish) {
+                console.error('Token missing general publish permission');
+                permissionsValid = false;
+              }
+              
+              if (!permissions.canPublishVideo) {
+                console.error('Token missing video publish permission');
+                permissionsValid = false;
+              }
+              
+              // Check for valid video sources
+              if (permissions.canPublishSources && 
+                  !permissions.canPublishSources.includes('camera')) {
+                console.error('Token missing camera as permitted source');
+                permissionsValid = false;
+              }
+            } else {
+              console.warn('Cannot determine permissions - permissions object not available');
+              // Continue anyway as permissions might be implicit
+            }
+            
+            if (!permissionsValid) {
+              console.error('Token has insufficient permissions to publish video');
+              throw new Error('insufficient permissions');
+            }
+            
+            // First check if we have browser permissions - this helps with iOS/macOS handoff
+            console.log('Requesting camera permissions...');
+            try {
+              await navigator.mediaDevices.getUserMedia({ video: true });
+              console.log('Camera permissions granted by browser');
+            } catch (mediaError) {
+              console.error('Browser media permission error:', mediaError);
+              throw mediaError;
+            }
+            
+            // Update device list after permissions are granted
+            console.log('Updating device list...');
+            await fetchDevices();
+            
+            // Ensure audio context is ready before enabling camera
+            try {
+              if (roomContext?.room) {
+                await roomContext.room.connectAudio();
+                console.log('Audio context connected');
+              }
+            } catch (e) {
+              console.warn('Audio context connection warning (non-fatal):', e);
+              // Continue despite error
+            }
+            
+            console.log('Enabling camera on recovered participant...');
+            try {
+              await participant.setCameraEnabled(true);
+              console.log('Camera enabled successfully');
+              setCameraEnabled(true);
+              setConnectionError(null);
+            } catch (cameraError) {
+              console.error('Error in setCameraEnabled call:', cameraError);
+              throw cameraError;
+            }
+            
+            return; // Exit function as we've handled everything with the recovered participant
+          }
+        } else {
+          console.error('No room context available, cannot proceed with camera');
+          setConnectionError('Video system not connected. Please refresh the page and try again.');
+          return;
         }
       }
       
-      // First check if we have permissions - this helps with iOS/macOS handoff
+      // Normal flow continues here when localParticipant is available immediately
+      console.log('Starting camera enable sequence...');
+      
+      // Log available room information
+      console.log('Room info before enabling camera:', {
+        hasRoomContext: !!roomContext?.room,
+        storedIdentity: userIdentityRef.current,
+        storedRoomName: roomNameRef.current,
+        contextIdentity: roomContext?.room?.localParticipant?.identity,
+        hasPermissions: !!localParticipant.permissions
+      });
+      
+      // Validate participant permissions first - do a comprehensive check
+      let permissionsValid = true;
+      
+      if (localParticipant.permissions) {
+        const permissions = localParticipant.permissions;
+        console.log('Camera enable - current permissions:', JSON.stringify(permissions));
+        
+        // Check all relevant publishing permissions
+        if (!permissions.canPublish) {
+          console.error('Token missing general publish permission');
+          permissionsValid = false;
+        }
+        
+        if (!permissions.canPublishVideo) {
+          console.error('Token missing video publish permission');
+          permissionsValid = false;
+        }
+        
+        // Check for valid video sources
+        if (permissions.canPublishSources && 
+            !permissions.canPublishSources.includes('camera')) {
+          console.error('Token missing camera as permitted source');
+          permissionsValid = false;
+        }
+      } else {
+        console.warn('Cannot determine permissions - permissions object not available');
+        // Continue anyway as permissions might be implicit
+      }
+      
+      if (!permissionsValid) {
+        console.error('Token has insufficient permissions to publish video');
+        throw new Error('insufficient permissions');
+      }
+      
+      // First check if we have browser permissions - this helps with iOS/macOS handoff
       console.log('Requesting camera permissions...');
-      await navigator.mediaDevices.getUserMedia({ video: true });
+      try {
+        await navigator.mediaDevices.getUserMedia({ video: true });
+        console.log('Camera permissions granted by browser');
+      } catch (mediaError) {
+        console.error('Browser media permission error:', mediaError);
+        throw mediaError;
+      }
       
       // Small delay to allow permissions to be fully processed
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -423,15 +699,27 @@ export default function VideoConference() {
           console.log('Audio context connected');
         }
       } catch (e) {
-        console.warn('Audio context connection warning:', e);
+        console.warn('Audio context connection warning (non-fatal):', e);
         // Continue despite error
       }
       
       console.log('Enabling camera...');
-      await localParticipant.setCameraEnabled(true);
-      setCameraEnabled(true);
-      setConnectionError(null);
-      console.log('Camera enabled successfully');
+      try {
+        await localParticipant.setCameraEnabled(true);
+        console.log('Camera enabled successfully');
+        setCameraEnabled(true);
+        setConnectionError(null);
+      } catch (cameraError) {
+        console.error('Error in setCameraEnabled call:', cameraError);
+        
+        // Check if this is a permissions error
+        if (cameraError instanceof Error && 
+            (cameraError.message.includes('permission') || 
+             cameraError.message.includes('Permission'))) {
+          throw new Error('insufficient permissions');
+        }
+        throw cameraError;
+      }
     } catch (error) {
       console.error('Error enabling camera:', error);
       
@@ -439,22 +727,49 @@ export default function VideoConference() {
       if (error instanceof Error) {
         console.error('Specific error:', error.message);
         
-        if (error.message.includes('Permission')) {
-          setConnectionError('Camera permission denied. Please allow camera access in your browser settings.');
+        if (error.message.toLowerCase().includes('permission')) {
+          if (error.message.toLowerCase().includes('denied') || 
+              error.message.toLowerCase().includes('not allowed')) {
+            // Browser permission denied
+            setConnectionError('Camera permission denied by browser. Please allow camera access in your browser settings.');
+          } else {
+            // Likely a LiveKit permission issue
+            setConnectionError('Your token lacks permissions to publish video. Click "Reconnect with New Token" to obtain proper permissions.');
+            setPermissionsError(true);
+            
+            // Remove auto-refresh token and just log what would have happened
+            console.log('Permission error detected. Would normally refresh token automatically, but waiting for user action instead.');
+            /* Commented out automatic refresh
+            setTimeout(() => {
+              if (refreshTokenRef.current) {
+                refreshTokenRef.current();
+              } else {
+                console.error('RefreshToken function not available for auto-refresh');
+                // Fallback to page reload
+                sessionStorage.setItem('livekit_needs_new_token', 'true');
+                window.location.reload();
+              }
+            }, 1000); // Slight delay to allow UI to update
+            */
+          }
         } else if (error.message.includes('insufficient permissions')) {
-          setConnectionError('Your token lacks permissions to publish video. Please try refreshing the page.');
+          setConnectionError('Your token lacks permissions to publish video. Click "Reconnect with New Token" to obtain proper permissions.');
           setPermissionsError(true);
           
-          // Trigger token refresh automatically
-          if (refreshTokenRef.current) {
-            console.log('Automatically requesting new token with proper permissions...');
-            refreshTokenRef.current();
-          } else {
-            // If we can't refresh via the ref, use session storage
-            console.log('Flagging need for new token via session storage...');
-            sessionStorage.setItem('livekit_needs_new_token', 'true');
-            window.location.reload();
-          }
+          // Remove auto-refresh token with delay
+          console.log('Insufficient permissions detected. Would normally refresh token automatically, but waiting for user action instead.');
+          /* Commented out automatic refresh
+          setTimeout(() => {
+            if (refreshTokenRef.current) {
+              refreshTokenRef.current();
+            } else {
+              console.error('RefreshToken function not available for auto-refresh');
+              // Fallback to page reload
+              sessionStorage.setItem('livekit_needs_new_token', 'true');
+              window.location.reload();
+            }
+          }, 1000);
+          */
         } else if (
           // iOS-specific errors
           error.message.includes('NotReadableError') || 
@@ -545,8 +860,11 @@ export default function VideoConference() {
     localParticipant.on('trackUnpublished', handleTrackUnpublished);
     
     return () => {
-      localParticipant.off('trackPublished', handleTrackPublished);
-      localParticipant.off('trackUnpublished', handleTrackUnpublished);
+      // Check if localParticipant still exists before removing listeners
+      if (localParticipant) {
+        localParticipant.off('trackPublished', handleTrackPublished);
+        localParticipant.off('trackUnpublished', handleTrackUnpublished);
+      }
     };
   }, [localParticipant]);
 
@@ -648,10 +966,13 @@ export default function VideoConference() {
           }
           
           // 3. If all else fails, reload the page
-          console.log('All recovery attempts failed, reloading page...');
+          console.log('All recovery attempts failed, but NOT automatically reloading page to allow error inspection');
+          setConnectionError('LiveKit error detected. Please check console for details and refresh manually when ready.');
+          /* Commented out automatic reload
           setTimeout(() => {
             window.location.reload();
           }, 1000);
+          */
         }
       }
     };
@@ -663,201 +984,161 @@ export default function VideoConference() {
     };
   }, [autoReconnectAttempted, roomContext?.room]);
 
+  // Store room and identity information as soon as they're available
+  useEffect(() => {
+    if (roomContext?.room && roomContext.room.localParticipant) {
+      // Save these for possible token refresh later
+      userIdentityRef.current = roomContext.room.localParticipant.identity;
+      roomNameRef.current = roomContext.room.name;
+      
+      console.log(`Room information captured: room=${roomContext.room.name}, identity=${roomContext.room.localParticipant.identity}`);
+    }
+  }, [roomContext?.room]);
+  
   // Render component
   return (
-    <div className="flex flex-col h-full overflow-hidden bg-gray-900 relative">
-      <RoomAudioRenderer />
-      
-      {(connectionError || isRefreshingToken) && 
-        <div className="absolute top-0 left-0 right-0 bg-red-600 text-white p-2 z-50">
-          <p className="text-center">
-            {isRefreshingToken 
-              ? 'Attempting to reconnect with new permissions... Please wait.' 
-              : connectionError}
-          </p>
-          {permissionsError && !isRefreshingToken && !autoReconnectAttempted && (
-            <div className="flex flex-col items-center mt-2">
-              <div className="flex justify-center mb-2 space-x-2">
-                <button 
-                  onClick={() => refreshTokenRef.current && refreshTokenRef.current()}
-                  disabled={isRefreshingToken || autoReconnectAttempted}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1 rounded transition-colors"
+    <div className="flex flex-col h-full bg-gray-900 text-white" onClick={handleContainerClick}>
+      <div className="flex-1 flex flex-col relative overflow-hidden">
+        {!cameraEnabled && (
+          <div className="absolute inset-0 flex items-center justify-center bg-gray-800 z-10">
+            <div className="text-center">
+              <button
+                onClick={enableCamera}
+                className="px-4 py-2 mb-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Enable Camera
+              </button>
+              <p className="text-sm text-gray-300">Click to enable your camera</p>
+            </div>
+          </div>
+        )}
+        
+        {connectionError && (
+          <div className="absolute inset-0 flex items-center justify-center bg-red-900/80 z-20">
+            <div className="text-center p-4 max-w-md">
+              <p className="mb-4">{connectionError}</p>
+              {permissionsError && (
+                <button
+                  onClick={refreshTokenRef.current}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                  disabled={isRefreshingToken}
                 >
                   {isRefreshingToken ? 'Reconnecting...' : 'Reconnect with New Token'}
                 </button>
-                <button 
-                  onClick={() => window.location.reload()}
-                  className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-1 rounded transition-colors"
-                >
-                  Retry Camera
-                </button>
-                <button 
-                  onClick={() => {
-                    // Reset error state
-                    setConnectionError(null);
-                    setPermissionsError(false);
-                  }}
-                  className="bg-gray-700 hover:bg-gray-800 text-white px-4 py-1 rounded transition-colors"
-                >
-                  Close
-                </button>
+              )}
+            </div>
+          </div>
+        )}
+        
+        {/* Main video container */}
+        <div className="relative w-full h-full">
+          <div className="flex flex-wrap gap-2 p-2 overflow-auto h-full">
+            {roomContext?.room ? (
+              <div className="w-full h-full flex items-center justify-center">
+                <LiveKitVideoConference />
               </div>
-              <p className="text-sm mt-1">
-                <span className="font-semibold">iOS Device Tip:</span> If using iPhone camera, ensure Continuity Camera is enabled on both devices. 
-                Check Settings → General → AirPlay & Handoff, and "Allow Handoff between this Mac and your iCloud devices" should be enabled.
-              </p>
-            </div>
-          )}
-          {autoReconnectAttempted && !isRefreshingToken && (
-            <div className="text-center mt-2">
-              <p className="text-sm">
-                Automatic recovery attempted. If issues persist, please refresh the page manually.
-              </p>
-              <button 
-                onClick={() => window.location.reload()}
-                className="mt-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-1 rounded transition-colors"
-              >
-                Refresh Page
-              </button>
-            </div>
-          )}
-        </div>
-      }
-      
-      {showDeviceSelector && (
-        <div className="m-4 p-3 bg-gray-800 text-white text-sm rounded-md">
-          <h3 className="font-semibold mb-2">Select Camera</h3>
-          <div className="space-y-2 max-h-40 overflow-y-auto">
-            {videoInputs.length === 0 ? (
-              <p className="text-gray-400 text-xs">No cameras found</p>
             ) : (
-              videoInputs.map(device => (
-                <button 
-                  key={device.deviceId}
-                  onClick={() => changeVideoDevice(device.deviceId)}
-                  className="block w-full text-left px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded text-xs"
-                >
-                  {device.label}
-                </button>
-              ))
+              <div className="w-full h-full flex items-center justify-center">
+                <div className="animate-pulse">Connecting...</div>
+              </div>
             )}
           </div>
-          <div className="mt-3 flex justify-end">
-            <button 
-              onClick={toggleDeviceSelector}
-              className="px-3 py-1 bg-gray-600 text-white text-xs rounded hover:bg-gray-700"
+        </div>
+      </div>
+      
+      {/* Controls at bottom */}
+      <div className="p-2 bg-gray-800 flex justify-center items-center space-x-2">
+        <button
+          onClick={toggleMicrophone}
+          className={`p-3 rounded-full ${micEnabled ? 'bg-blue-600' : 'bg-red-600'}`}
+          title={micEnabled ? 'Mute microphone' : 'Unmute microphone'}
+        >
+          {micEnabled ? (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+              <line x1="12" y1="19" x2="12" y2="23"></line>
+              <line x1="8" y1="23" x2="16" y2="23"></line>
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="1" y1="1" x2="23" y2="23"></line>
+              <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path>
+              <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path>
+              <line x1="12" y1="19" x2="12" y2="23"></line>
+              <line x1="8" y1="23" x2="16" y2="23"></line>
+            </svg>
+          )}
+        </button>
+        
+        <button
+          onClick={toggleCamera}
+          className={`p-3 rounded-full ${cameraEnabled ? 'bg-blue-600' : 'bg-red-600'}`}
+          title={cameraEnabled ? 'Turn off camera' : 'Turn on camera'}
+        >
+          {cameraEnabled ? (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M23 7l-7 5 7 5V7z"></path>
+              <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M16 16v1a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2m5.66 0H14a2 2 0 0 1 2 2v3.34l1 1L23 7v10"></path>
+              <line x1="1" y1="1" x2="23" y2="23"></line>
+            </svg>
+          )}
+        </button>
+        
+        <button
+          onClick={toggleDeviceSelector}
+          className="p-3 rounded-full bg-gray-700"
+          title="Choose devices"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+      </div>
+      
+      {/* Device selector */}
+      {showDeviceSelector && (
+        <div className="p-3 bg-gray-800 border-t border-gray-700">
+          <div className="mb-2">
+            <label className="block text-sm mb-1">Camera</label>
+            <select 
+              className="w-full p-2 bg-gray-700 rounded"
+              onChange={(e) => changeVideoDevice(e.target.value)}
             >
-              Close
-            </button>
+              {videoInputs.map(device => (
+                <option key={device.deviceId} value={device.deviceId}>
+                  {device.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          <div>
+            <label className="block text-sm mb-1">Microphone</label>
+            <select 
+              className="w-full p-2 bg-gray-700 rounded"
+              onChange={(e) => {
+                if (localParticipant) {
+                  localParticipant.setMicrophoneEnabled(true, { deviceId: e.target.value });
+                }
+              }}
+            >
+              {audioInputs.map(device => (
+                <option key={device.deviceId} value={device.deviceId}>
+                  {device.label}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       )}
       
-      {connectionState === ConnectionState.Connecting && (
-        <div className="flex items-center justify-center h-full">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-            <p>Connecting to room...</p>
-          </div>
-        </div>
-      )}
-      
-      {(connectionState === ConnectionState.Connected || connectionState === ConnectionState.Reconnecting) && (
-        <LayoutContextProvider>
-          <div className="flex-1 relative flex flex-col" onClick={(e) => e.stopPropagation()}>
-            {!cameraEnabled && !micEnabled && (
-              <div className="absolute inset-0 flex items-center justify-center z-10 bg-black bg-opacity-70">
-                <div className="text-center p-4 bg-gray-800 rounded-lg">
-                  <p className="mb-4">Share your camera and microphone to join the call</p>
-                  <div className="space-y-2">
-                    <button
-                      onClick={enableCamera}
-                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 w-full"
-                    >
-                      Enable Camera
-                    </button>
-                    <button
-                      onClick={toggleDeviceSelector}
-                      className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 w-full"
-                    >
-                      Select Camera Source
-                    </button>
-                    <button
-                      onClick={handleiOSHandoff}
-                      className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 w-full"
-                    >
-                      Use iPhone/iPad Camera
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            <SafeVideoConference />
-            
-            <div className="p-2 border-t border-gray-800">
-              <div className="flex justify-center space-x-4">
-                <button
-                  onClick={toggleCamera}
-                  className={`p-2 rounded-full ${cameraEnabled ? 'bg-blue-600' : 'bg-red-600'}`}
-                  title={cameraEnabled ? "Turn camera off" : "Turn camera on"}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    {cameraEnabled ? (
-                      <>
-                        <path d="M23 7l-7 5 7 5V7z"></path>
-                        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-                      </>
-                    ) : (
-                      <>
-                        <path d="M23 7l-7 5 7 5V7z"></path>
-                        <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
-                        <line x1="1" y1="1" x2="23" y2="23"></line>
-                      </>
-                    )}
-                  </svg>
-                </button>
-                
-                <button
-                  onClick={toggleMicrophone}
-                  className={`p-2 rounded-full ${micEnabled ? 'bg-blue-600' : 'bg-red-600'}`}
-                  title={micEnabled ? "Mute microphone" : "Unmute microphone"}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    {micEnabled ? (
-                      <>
-                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                        <line x1="12" y1="19" x2="12" y2="23"></line>
-                        <line x1="8" y1="23" x2="16" y2="23"></line>
-                      </>
-                    ) : (
-                      <>
-                        <line x1="1" y1="1" x2="23" y2="23"></line>
-                        <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path>
-                        <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .85-.13 1.67-.39 2.44"></path>
-                        <line x1="12" y1="19" x2="12" y2="23"></line>
-                        <line x1="8" y1="23" x2="16" y2="23"></line>
-                      </>
-                    )}
-                  </svg>
-                </button>
-                
-                <button
-                  onClick={toggleDeviceSelector}
-                  className="p-2 rounded-full bg-gray-700"
-                  title="Select camera/microphone"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="3"></circle>
-                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
-        </LayoutContextProvider>
-      )}
+      <RoomAudioRenderer />
     </div>
   );
 } 
