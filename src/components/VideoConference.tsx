@@ -67,6 +67,8 @@ export default function VideoConference() {
   
   // Pre-define reference to break circular dependency
   const changeVideoDeviceRef = useRef<(deviceId: string) => Promise<void>>();
+  // Add reference for refreshToken to break circular dependency
+  const refreshTokenRef = useRef<() => Promise<void>>();
   
   const userIdentityRef = useRef<string | null>(null);
   const roomNameRef = useRef<string | null>(null);
@@ -167,6 +169,10 @@ export default function VideoConference() {
         } else if (error.message.includes('insufficient permissions')) {
           setConnectionError('Your token lacks permissions to publish video. Please refresh and try again.');
           setPermissionsError(true);
+          // Use the ref to call refreshToken to avoid circular dependency
+          if (refreshTokenRef.current) {
+            refreshTokenRef.current();
+          }
         } else {
           setConnectionError(`Failed to switch camera: ${error.message}`);
         }
@@ -175,6 +181,66 @@ export default function VideoConference() {
       }
     }
   }, [localParticipant, cameraEnabled]);
+  
+  // Get a new token with proper permissions
+  const refreshToken = useCallback(async () => {
+    try {
+      // Safety check - make sure room context and current refs are available
+      if (!roomContext?.room || !userIdentityRef.current || !roomNameRef.current) {
+        console.error('Cannot refresh token: room context or identity information missing');
+        setConnectionError('Cannot reconnect: missing room information. Please refresh the page manually.');
+        return;
+      }
+      
+      // Store room information before disconnecting
+      if (roomContext.room.localParticipant) {
+        userIdentityRef.current = roomContext.room.localParticipant.identity;
+        roomNameRef.current = roomContext.room.name;
+      }
+      
+      // Set state to show loading
+      setIsRefreshingToken(true);
+      
+      // Get a new token with explicit publishing permissions
+      const response = await fetch('/api/refresh-token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          roomName: roomNameRef.current,
+          identity: userIdentityRef.current,
+        }),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok || !data.token) {
+        throw new Error(data.error || 'Failed to get new token');
+      }
+      
+      // Disconnect properly from the room
+      if (roomContext.room.isConnected) {
+        await roomContext.room.disconnect(true);
+      }
+      
+      // Reconnect with the new token (by reloading the page)
+      console.log('Got new token with proper permissions, reloading page...');
+      sessionStorage.setItem('livekit_token', data.token);
+      window.location.reload();
+      
+    } catch (error) {
+      console.error('Error refreshing token:', error);
+      setConnectionError('Failed to get a new token. Please refresh the page manually.');
+    } finally {
+      setIsRefreshingToken(false);
+    }
+  }, [roomContext?.room]);
+
+  // Store the refreshToken function in the ref to break circular dependency
+  useEffect(() => {
+    refreshTokenRef.current = refreshToken;
+  }, [refreshToken]);
   
   // Set reference to the function to break circular dependency
   useEffect(() => {
@@ -325,20 +391,87 @@ export default function VideoConference() {
     try {
       if (!localParticipant) return;
       
+      console.log('Starting camera enable sequence...');
+      
+      // Validate participant permissions first
+      if (localParticipant.permissions) {
+        const permissions = localParticipant.permissions;
+        if (!permissions.canPublish || !permissions.canPublishVideo) {
+          console.error('Token has insufficient permissions to publish video');
+          throw new Error('insufficient permissions');
+        }
+      }
+      
       // First check if we have permissions - this helps with iOS/macOS handoff
+      console.log('Requesting camera permissions...');
       await navigator.mediaDevices.getUserMedia({ video: true });
       
+      // Small delay to allow permissions to be fully processed
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
       // Update device list after permissions are granted
+      console.log('Updating device list...');
       await fetchDevices();
       
+      // Another small delay before enabling camera
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Ensure audio context is ready before enabling camera
+      try {
+        if (roomContext?.room) {
+          await roomContext.room.connectAudio();
+          console.log('Audio context connected');
+        }
+      } catch (e) {
+        console.warn('Audio context connection warning:', e);
+        // Continue despite error
+      }
+      
+      console.log('Enabling camera...');
       await localParticipant.setCameraEnabled(true);
       setCameraEnabled(true);
       setConnectionError(null);
+      console.log('Camera enabled successfully');
     } catch (error) {
       console.error('Error enabling camera:', error);
-      setConnectionError('Failed to enable camera. Please check your permissions and ensure your camera is connected.');
+      
+      // Try to provide more detailed error information
+      if (error instanceof Error) {
+        console.error('Specific error:', error.message);
+        
+        if (error.message.includes('Permission')) {
+          setConnectionError('Camera permission denied. Please allow camera access in your browser settings.');
+        } else if (error.message.includes('insufficient permissions')) {
+          setConnectionError('Your token lacks permissions to publish video. Please try refreshing the page.');
+          setPermissionsError(true);
+          
+          // Trigger token refresh automatically
+          if (refreshTokenRef.current) {
+            console.log('Automatically requesting new token with proper permissions...');
+            refreshTokenRef.current();
+          } else {
+            // If we can't refresh via the ref, use session storage
+            console.log('Flagging need for new token via session storage...');
+            sessionStorage.setItem('livekit_needs_new_token', 'true');
+            window.location.reload();
+          }
+        } else if (
+          // iOS-specific errors
+          error.message.includes('NotReadableError') || 
+          error.message.includes('NotAllowedError') ||
+          error.message.includes('NotFoundError')
+        ) {
+          setConnectionError('Camera access error. If using an iPhone, ensure Continuity Camera is enabled.');
+          // Try iOS handoff automatically
+          handleiOSHandoff().catch(e => console.error('iOS handoff failed:', e));
+        } else {
+          setConnectionError(`Failed to enable camera: ${error.message}`);
+        }
+      } else {
+        setConnectionError('Failed to enable camera. Please check your permissions and ensure your camera is connected.');
+      }
     }
-  }, [localParticipant, fetchDevices]);
+  }, [localParticipant, fetchDevices, roomContext?.room, handleiOSHandoff]);
   
   // Toggle camera function with better error handling
   const toggleCamera = useCallback(async () => {
@@ -447,66 +580,13 @@ export default function VideoConference() {
     e.stopPropagation();
   }, []);
 
-  // Get a new token with proper permissions
-  const refreshToken = useCallback(async () => {
-    try {
-      // Safety check - make sure room context and current refs are available
-      if (!roomContext?.room || !userIdentityRef.current || !roomNameRef.current) {
-        console.error('Cannot refresh token: room context or identity information missing');
-        setConnectionError('Cannot reconnect: missing room information. Please refresh the page manually.');
-        return;
-      }
-      
-      // Store room information before disconnecting
-      if (roomContext.room.localParticipant) {
-        userIdentityRef.current = roomContext.room.localParticipant.identity;
-        roomNameRef.current = roomContext.room.name;
-      }
-      
-      // Set state to show loading
-      setIsRefreshingToken(true);
-      
-      // Get a new token with explicit publishing permissions
-      const response = await fetch('/api/refresh-token', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          roomName: roomNameRef.current,
-          identity: userIdentityRef.current,
-        }),
-      });
-      
-      const data = await response.json();
-      
-      if (!response.ok || !data.token) {
-        throw new Error(data.error || 'Failed to get new token');
-      }
-      
-      // Disconnect properly from the room
-      if (roomContext.room.isConnected) {
-        await roomContext.room.disconnect(true);
-      }
-      
-      // Reconnect with the new token (by reloading the page)
-      console.log('Got new token with proper permissions, reloading page...');
-      sessionStorage.setItem('livekit_token', data.token);
-      window.location.reload();
-      
-    } catch (error) {
-      console.error('Error refreshing token:', error);
-      setConnectionError('Failed to get a new token. Please refresh the page manually.');
-    } finally {
-      setIsRefreshingToken(false);
-    }
-  }, [roomContext?.room]);
-
   // Global error handler for LiveKit errors - capture errors that might occur outside Room context
   useEffect(() => {
     const handleGlobalError = async (event: ErrorEvent) => {
+      // Filter for LiveKit-related errors
       if (event.error?.message?.includes('Context is closed') || 
           event.error?.message?.includes('insufficient permissions') ||
+          event.error?.message?.includes('Failed to execute') ||
           event.error?.stack?.includes('livekit-client_esm_mjs')) {
         
         console.warn('Detected LiveKit error via window event:', event.error);
@@ -527,7 +607,48 @@ export default function VideoConference() {
           setAutoReconnectAttempted(true);
           console.log('Attempting automatic recovery from LiveKit error...');
           
-          // Use a direct page reload instead of calling refreshToken to avoid circular dependency
+          // Try several recovery strategies in sequence
+          try {
+            // 1. First try to reconnect audio context if available
+            if (roomContext?.room) {
+              console.log('Attempting to reset audio context...');
+              try {
+                // Force recreation of audio context if possible
+                await roomContext.room.disconnectAudio();
+                await new Promise(resolve => setTimeout(resolve, 500));
+                await roomContext.room.connectAudio();
+                console.log('Successfully reset audio context');
+                
+                // Wait to see if that fixed it
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                // If we're still connected, don't proceed to more drastic measures
+                if (roomContext.room.state === 'connected') {
+                  console.log('Room still connected after audio reset, recovery may have succeeded');
+                  return;
+                }
+              } catch (e) {
+                console.warn('Error resetting audio context:', e);
+                // Continue to next recovery strategy
+              }
+              
+              // 2. Try to reconnect to the room
+              try {
+                console.log('Attempting room reconnection...');
+                await roomContext.room.reconnect();
+                console.log('Room reconnection successful');
+                return;
+              } catch (e) {
+                console.warn('Room reconnection failed:', e);
+                // Continue to final strategy
+              }
+            }
+          } catch (e) {
+            console.warn('Recovery attempts failed:', e);
+          }
+          
+          // 3. If all else fails, reload the page
+          console.log('All recovery attempts failed, reloading page...');
           setTimeout(() => {
             window.location.reload();
           }, 1000);
@@ -540,7 +661,7 @@ export default function VideoConference() {
     return () => {
       window.removeEventListener('error', handleGlobalError);
     };
-  }, [autoReconnectAttempted]);
+  }, [autoReconnectAttempted, roomContext?.room]);
 
   // Render component
   return (
@@ -558,7 +679,7 @@ export default function VideoConference() {
             <div className="flex flex-col items-center mt-2">
               <div className="flex justify-center mb-2 space-x-2">
                 <button 
-                  onClick={refreshToken}
+                  onClick={() => refreshTokenRef.current && refreshTokenRef.current()}
                   disabled={isRefreshingToken || autoReconnectAttempted}
                   className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1 rounded transition-colors"
                 >

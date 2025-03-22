@@ -13,19 +13,70 @@ export async function GET(request: NextRequest) {
     );
   }
   
-  // Create a token with specified identity and room access
-  const at = new AccessToken(
-    process.env.LIVEKIT_API_KEY!,
-    process.env.LIVEKIT_API_SECRET!,
-    {
-      identity: username,
-    }
-  );
+  // Validate environment variables
+  if (!process.env.LIVEKIT_API_KEY || !process.env.LIVEKIT_API_SECRET) {
+    return NextResponse.json(
+      { error: 'Server configuration error: Missing LiveKit credentials' },
+      { status: 500 }
+    );
+  }
   
-  // Grant appropriate permissions
-  at.addGrant({ roomJoin: true, room, canPublish: true, canSubscribe: true });
-  
-  const token = at.toJwt();
-  
-  return NextResponse.json({ token });
+  try {
+    // Create a token with specified identity and room access
+    const at = new AccessToken(
+      process.env.LIVEKIT_API_KEY,
+      process.env.LIVEKIT_API_SECRET,
+      {
+        identity: username,
+        ttl: 60 * 60 * 6, // 6 hours in seconds
+        name: username, // Add name field for better debugging
+      }
+    );
+    
+    // Grant appropriate permissions
+    at.addGrant({ 
+      roomJoin: true, 
+      room, 
+      canPublish: true, 
+      canSubscribe: true,
+      canPublishData: true,
+      
+      // Explicitly add these permissions for audio/video publishing
+      canPublishAudio: true,
+      canPublishVideo: true,
+      
+      // Make these more explicit for iOS handoff compatibility
+      canPublishSources: { 
+        camera: true, 
+        microphone: true, 
+        screen: true,
+        screen_share: true,
+      },
+      
+      // Add more detailed permissions
+      participantPermission: {
+        canPublish: true,
+        canPublishAudio: true,
+        canPublishVideo: true,
+        canSubscribe: true,
+      },
+      
+      roomAdmin: false, // Not an admin, but a regular user
+      roomCreate: false,
+    });
+    
+    const token = await at.toJwt();
+    
+    // Log full token details for debugging
+    console.log(`Generated token for ${username} with full publishing permissions`);
+    console.log(`Token details: roomJoin, canPublish, canPublishAudio, canPublishVideo, canPublishSources all set to true`);
+    
+    return NextResponse.json({ token });
+  } catch (error) {
+    console.error('Token generation error:', error);
+    return NextResponse.json(
+      { error: 'Failed to generate token' },
+      { status: 500 }
+    );
+  }
 } 

@@ -49,11 +49,18 @@ export async function POST(request: NextRequest) {
         camera: true, 
         microphone: true, 
         screen: true,
-        screen_share: true, // added for completeness
+        screen_share: true,
       },
       
-      // Ensure complete control over the room when reconnecting
-      // This helps prevent context closed errors and permission issues
+      // Add more detailed permissions
+      participantPermission: {
+        canPublish: true,
+        canPublishAudio: true,
+        canPublishVideo: true,
+        canSubscribe: true,
+      },
+      
+      // Grant elevated privileges for reconnection scenarios
       roomAdmin: true,
       roomCreate: true,
       
@@ -63,10 +70,11 @@ export async function POST(request: NextRequest) {
     });
     
     // Generate the token
-    const token = at.toJwt();
+    const token = await at.toJwt();
     
     // Log token info for debugging
     console.log(`Generated refresh token for ${identity} with enhanced publishing permissions`);
+    console.log(`Full permissions set: admin, create, publish audio/video/data with all sources`);
     
     return NextResponse.json({ 
       success: true,

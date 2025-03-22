@@ -11,9 +11,6 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "@deepgram/sdk": "^3.11.2",
-    "@livekit/agents": "^0.7.1",
-    "@livekit/agents-plugin-deepgram": "^0.5.4",
-    "@livekit/agents-plugin-openai": "^0.9.0",
     "@livekit/components-react": "^2.8.1",
     "@livekit/components-styles": "^1.1.4",
     "livekit-client": "^2.9.8",
