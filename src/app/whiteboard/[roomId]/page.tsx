@@ -1,80 +1,178 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { LiveKitRoom } from '@livekit/components-react';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { useParams } from 'next/navigation';
 import CollaborativeBoard from '@/components/CollaborativeBoard';
 import VideoConference from '@/components/VideoConference';
-import { useParams } from 'next/navigation';
+import Transcription from '@/components/Transcription';
+import { LiveKitRoom } from '@livekit/components-react';
+import JoinRoomForm from '@/components/JoinRoomForm';
+import { Room } from 'livekit-client';
 
-export default function WhiteboardPage() {
+export default function WhiteboardRoom() {
   const params = useParams();
   const roomId = params.roomId as string;
-  const [token, setToken] = useState<string>('');
-  const [username, setUsername] = useState<string>(`user_${Math.floor(Math.random() * 10000)}`);
-  const [isLoading, setIsLoading] = useState(true);
-
+  const [token, setToken] = useState<string | null>(null);
+  const [showVideoPanel, setShowVideoPanel] = useState(true);
+  const [showTranscription, setShowTranscription] = useState(false);
+  const roomRef = useRef<Room | null>(null);
+  
+  // Check for stored token on mount (enables token refresh flow)
   useEffect(() => {
-    async function getToken() {
-      try {
-        const response = await fetch(`/api/get-token?room=${roomId}&username=${username}`);
-        const data = await response.json();
-        setToken(data.token);
-        setIsLoading(false);
-      } catch (error) {
-        console.error('Error fetching token:', error);
-        setIsLoading(false);
+    if (typeof window !== 'undefined') {
+      const storedToken = sessionStorage.getItem('livekit_token');
+      if (storedToken) {
+        console.log('Using stored token from session storage');
+        setToken(storedToken);
+        // Clear the stored token to prevent infinite loops if there are issues
+        sessionStorage.removeItem('livekit_token');
       }
     }
+  }, []);
+  
+  const handleJoin = useCallback((newToken: string) => {
+    setToken(newToken);
+  }, []);
 
-    getToken();
-  }, [roomId, username]);
+  const toggleVideoPanel = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation(); // Prevent event bubbling
+    setShowVideoPanel(prev => !prev);
+  }, []);
 
-  useEffect(() => {
-    async function createAgent() {
-      try {
-        if (token) {
-          await fetch('/api/create-agent', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ roomName: roomId }),
-          });
+  const toggleTranscription = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation(); // Prevent event bubbling
+    setShowTranscription(prev => !prev);
+  }, []);
+  
+  // This helps prevent context closing issues
+  const handleRoomCreate = useCallback((room: Room) => {
+    roomRef.current = room;
+    
+    // Handle window events to prevent context issues
+    const handleBeforeUnload = () => {
+      if (roomRef.current) {
+        // Properly disconnect from room
+        roomRef.current.disconnect(true);
+      }
+    };
+    
+    // Add specific device change listener to support handoff
+    const handleDeviceChange = () => {
+      // This will trigger LiveKit to update available devices
+      if (roomRef.current && roomRef.current.localParticipant) {
+        console.log('Device change detected, updating available devices');
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    navigator.mediaDevices.addEventListener('devicechange', handleDeviceChange);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      navigator.mediaDevices.removeEventListener('devicechange', handleDeviceChange);
+      // Ensure clean disconnection
+      if (roomRef.current) {
+        try {
+          roomRef.current.disconnect(true);
+        } catch (e) {
+          console.warn('Error disconnecting from room:', e);
         }
-      } catch (error) {
-        console.error('Error creating agent:', error);
       }
-    }
+    };
+  }, []);
 
-    createAgent();
-  }, [roomId, token]);
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-500"></div>
-      </div>
-    );
+  if (!token) {
+    return <JoinRoomForm roomId={roomId} onJoin={handleJoin} />;
   }
 
-  return (
-    <div className="flex h-screen">
-      {/* Video Conference Section */}
-      <div className="w-1/4 h-full bg-gray-900 p-2">
-        {token && (
-          <LiveKitRoom
-            serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
-            token={token}
-          >
-            <VideoConference />
-          </LiveKitRoom>
-        )}
-      </div>
+  // SafeServerUrl will never be undefined in the browser
+  const safeServerUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || "";
 
-      {/* Whiteboard Section */}
-      <div className="w-3/4 h-full">
-        <CollaborativeBoard roomName={roomId} token={token} />
-      </div>
+  return (
+    <div className="h-screen" onClick={(e) => e.stopPropagation()}>
+      <LiveKitRoom
+        token={token}
+        serverUrl={safeServerUrl}
+        connect={true}
+        data-lk-theme="default"
+        onConnected={handleRoomCreate}
+        options={{ 
+          adaptiveStream: true,
+          dynacast: true,
+          videoCaptureDefaults: {
+            resolution: { width: 640, height: 480 },
+            facingMode: 'user'
+          },
+          audioCaptureDefaults: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          },
+          publishDefaults: {
+            dtx: true,
+            videoSimulcastLayers: [
+              { width: 320, height: 240, encoding: { maxBitrate: 150_000, maxFramerate: 15 } },
+              { width: 640, height: 480, encoding: { maxBitrate: 500_000, maxFramerate: 30 } }
+            ]
+          },
+          // These settings help prevent context closing
+          disconnectOnBrowserClose: false,
+          disconnectOnPageUnload: false
+        }}
+      >
+        <div className="flex flex-col md:flex-row h-full">
+          <div className={`${showVideoPanel ? 'w-full md:w-3/4' : 'w-full'} h-full relative`}>
+            <CollaborativeBoard roomId={roomId} />
+            
+            {showTranscription && (
+              <div className="absolute bottom-4 left-4 z-10 w-1/3 h-64 shadow-lg rounded-lg overflow-hidden">
+                <Transcription />
+              </div>
+            )}
+            
+            <div className="absolute top-4 right-4 z-10 flex space-x-2" onClick={(e) => e.stopPropagation()}>
+              <button 
+                onClick={toggleTranscription}
+                className="p-2 bg-gray-800 text-white rounded-full shadow-md hover:bg-gray-700"
+                title={showTranscription ? "Hide transcript" : "Show transcript"}
+                aria-label={showTranscription ? "Hide transcript" : "Show transcript"}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                </svg>
+              </button>
+              <button 
+                onClick={toggleVideoPanel}
+                className="p-2 bg-gray-800 text-white rounded-full shadow-md hover:bg-gray-700"
+                title={showVideoPanel ? "Hide video panel" : "Show video panel"}
+                aria-label={showVideoPanel ? "Hide video panel" : "Show video panel"}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="feather feather-video">
+                  {showVideoPanel ? (
+                    <>
+                      <path d="M23 7l-7 5 7 5V7z"></path>
+                      <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                      <line x1="1" y1="1" x2="23" y2="23"></line>
+                    </>
+                  ) : (
+                    <>
+                      <path d="M23 7l-7 5 7 5V7z"></path>
+                      <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                    </>
+                  )}
+                </svg>
+              </button>
+            </div>
+          </div>
+          {showVideoPanel && (
+            <div className="w-full md:w-1/4 h-60 md:h-full">
+              <VideoConference />
+            </div>
+          )}
+        </div>
+      </LiveKitRoom>
     </div>
   );
 } 
