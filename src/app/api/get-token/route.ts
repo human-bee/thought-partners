@@ -45,14 +45,6 @@ export async function GET(request: NextRequest) {
       canPublishAudio: true,
       canPublishVideo: true,
       
-      // Make these more explicit for iOS handoff compatibility
-      canPublishSources: { 
-        camera: true, 
-        microphone: true, 
-        screen: true,
-        screen_share: true,
-      },
-      
       // Add more detailed permissions
       participantPermission: {
         canPublish: true,
@@ -70,6 +62,15 @@ export async function GET(request: NextRequest) {
     // Log full token details for debugging
     console.log(`Generated token for ${username} with full publishing permissions`);
     console.log(`Token details: roomJoin, canPublish, canPublishAudio, canPublishVideo, canPublishSources all set to true`);
+    
+    // Verify token is a string
+    if (typeof token !== 'string') {
+      console.error('Token generation error: Token is not a string', token);
+      return NextResponse.json(
+        { error: 'Generated token is not valid' },
+        { status: 500 }
+      );
+    }
     
     return NextResponse.json({ token });
   } catch (error) {

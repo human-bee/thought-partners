@@ -1,19 +1,20 @@
 "use client";
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, memo } from 'react';
 
 interface JoinRoomFormProps {
   roomId: string;
   onJoin: (token: string) => void;
 }
 
-export default function JoinRoomForm({ roomId, onJoin }: JoinRoomFormProps) {
+// Wrap the component with memo to prevent unnecessary re-renders
+const JoinRoomForm = memo(function JoinRoomForm({ roomId, onJoin }: JoinRoomFormProps) {
   const [username, setUsername] = useState(`user_${Math.floor(Math.random() * 10000)}`);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [createAiAgent, setCreateAiAgent] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
@@ -45,12 +46,10 @@ export default function JoinRoomForm({ roomId, onJoin }: JoinRoomFormProps) {
           throw new Error('Invalid token received from the server');
         }
         
-        // Ensure token is a string
-        const tokenStr = typeof data.token === 'object' 
-          ? JSON.stringify(data.token) 
-          : String(data.token);
-        
-        console.log('Token received:', typeof data.token, data.token);
+        // Ensure token is a string - don't stringify if already a string
+        const tokenStr = typeof data.token === 'string' 
+          ? data.token 
+          : JSON.stringify(data.token);
         
         // Additional validation to ensure token is not empty
         if (tokenStr === '{}' || tokenStr === 'undefined' || tokenStr === '') {
@@ -58,11 +57,9 @@ export default function JoinRoomForm({ roomId, onJoin }: JoinRoomFormProps) {
           throw new Error('Invalid token format received from server');
         }
         
+        // Store token for possible future reference
+        sessionStorage.setItem('livekit_token', tokenStr);
         onJoin(tokenStr);
-        
-        if (createAiAgent && data.agentCreated) {
-          console.log('AI assistant joined the room');
-        }
       } else {
         throw new Error('No token received from server');
       }
@@ -72,7 +69,7 @@ export default function JoinRoomForm({ roomId, onJoin }: JoinRoomFormProps) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [roomId, username, createAiAgent, onJoin]);
 
   // Prevent event propagation to avoid context closed errors
   const handleCheckboxChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -83,6 +80,12 @@ export default function JoinRoomForm({ roomId, onJoin }: JoinRoomFormProps) {
   const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     e.stopPropagation();
     setUsername(e.target.value);
+  }, []);
+
+  // Memoize these click handlers
+  const handleLabelClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCreateAiAgent(prev => !prev);
   }, []);
 
   return (
@@ -121,10 +124,7 @@ export default function JoinRoomForm({ roomId, onJoin }: JoinRoomFormProps) {
             <label 
               htmlFor="createAiAgent" 
               className="ml-2 block text-sm text-gray-700"
-              onClick={(e) => {
-                e.stopPropagation();
-                setCreateAiAgent(!createAiAgent);
-              }}
+              onClick={handleLabelClick}
             >
               Add AI assistant (provides transcription)
             </label>
@@ -141,4 +141,6 @@ export default function JoinRoomForm({ roomId, onJoin }: JoinRoomFormProps) {
       </div>
     </div>
   );
-} 
+});
+
+export default JoinRoomForm; 

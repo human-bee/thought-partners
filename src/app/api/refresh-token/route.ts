@@ -44,14 +44,6 @@ export async function POST(request: NextRequest) {
       canPublishAudio: true,
       canPublishVideo: true,
       
-      // Make these more explicit for iOS handoff compatibility
-      canPublishSources: { 
-        camera: true, 
-        microphone: true, 
-        screen: true,
-        screen_share: true,
-      },
-      
       // Add more detailed permissions
       participantPermission: {
         canPublish: true,
@@ -71,6 +63,15 @@ export async function POST(request: NextRequest) {
     
     // Generate the token
     const token = await at.toJwt();
+    
+    // Verify token is a string
+    if (typeof token !== 'string') {
+      console.error('Token generation error: Token is not a string', token);
+      return NextResponse.json(
+        { error: 'Generated token is not valid' },
+        { status: 500 }
+      );
+    }
     
     // Log token info for debugging
     console.log(`Generated refresh token for ${identity} with enhanced publishing permissions`);

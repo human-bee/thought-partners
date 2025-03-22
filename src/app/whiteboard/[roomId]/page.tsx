@@ -1,14 +1,17 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo, useId } from 'react';
 import { useParams } from 'next/navigation';
-import CollaborativeBoard from '@/components/CollaborativeBoard';
-import VideoConference from '@/components/VideoConference';
-import Transcription from '@/components/Transcription';
-import { LiveKitRoom } from '@livekit/components-react';
+import dynamic from 'next/dynamic';
 import JoinRoomForm from '@/components/JoinRoomForm';
 import { Room } from 'livekit-client';
-import LiveKitInitializer from '@/components/LiveKitInitializer';
+
+// Dynamically import components to reduce initial load time and prevent unnecessary renders
+const CollaborativeBoard = dynamic(() => import('@/components/CollaborativeBoard'), { ssr: false });
+const VideoConference = dynamic(() => import('@/components/VideoConference'), { ssr: false });
+const Transcription = dynamic(() => import('@/components/Transcription'), { ssr: false });
+const LiveKitRoom = dynamic(() => import('@livekit/components-react').then(mod => mod.LiveKitRoom), { ssr: false });
+const LiveKitInitializer = dynamic(() => import('@/components/LiveKitInitializer'), { ssr: false });
 
 export default function WhiteboardRoom() {
   const params = useParams();
@@ -17,24 +20,22 @@ export default function WhiteboardRoom() {
   const [showVideoPanel, setShowVideoPanel] = useState(true);
   const [showTranscription, setShowTranscription] = useState(false);
   const roomRef = useRef<Room | null>(null);
+  const tokenUpdateRequestedRef = useRef(false);
   
   // Check for stored token on mount (enables token refresh flow)
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    // Only run this effect once on initial mount
+    if (typeof window !== 'undefined' && !tokenUpdateRequestedRef.current) {
       // Check if we need a new token due to permission issues
       const needsNewToken = sessionStorage.getItem('livekit_needs_new_token');
       if (needsNewToken === 'true') {
-        console.log('WhiteboardRoom: Permission issue detected, clearing token to force reconnection');
         sessionStorage.removeItem('livekit_needs_new_token');
         sessionStorage.removeItem('livekit_token');
-        // Force cleanup of any session state
-        setToken(null);
         return;
       }
       
       const storedToken = sessionStorage.getItem('livekit_token');
       if (storedToken) {
-        console.log('Using stored token from session storage');
         setToken(storedToken);
         // Clear the stored token to prevent infinite loops if there are issues
         sessionStorage.removeItem('livekit_token');
@@ -43,11 +44,11 @@ export default function WhiteboardRoom() {
   }, []);
   
   const handleJoin = useCallback((newToken: string) => {
-    console.log('handleJoin received token:', newToken);
     if (!newToken || newToken === '{}' || newToken === 'undefined') {
       console.error('Invalid token received in handleJoin:', newToken);
       return;
     }
+    
     setToken(newToken);
   }, []);
 
@@ -100,39 +101,71 @@ export default function WhiteboardRoom() {
     };
   }, []);
 
-  if (!token) {
-    return <JoinRoomForm roomId={roomId} onJoin={handleJoin} />;
-  }
-
-  // SafeServerUrl will never be undefined in the browser
-  const safeServerUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL || "";
+  // Handle server URL setup once - never changes
+  const safeServerUrl = useMemo(() => {
+    let url = process.env.NEXT_PUBLIC_LIVEKIT_URL || '';
+    
+    // Make sure URL has the wss:// protocol prefix for WebSocket connection
+    if (url && !url.startsWith('wss://') && !url.startsWith('ws://')) {
+      url = `wss://${url}`;
+    }
+    
+    return url;
+  }, []);
   
-  // Ensure token is a string and not an empty object or invalid value
-  let tokenString = '';
-  if (typeof token === 'object') {
-    // Check if it's an empty object
-    if (token === null || Object.keys(token).length === 0) {
-      console.error('Invalid token object received:', token);
-      // Force token refresh by setting to null and showing join form again
-      setToken(null);
-      return <JoinRoomForm roomId={roomId} onJoin={handleJoin} />;
+  // Handle token validation once per token change and memoize the result 
+  const tokenString = useMemo(() => {
+    if (!token) return null;
+    
+    if (typeof token === 'object') {
+      if (token === null || Object.keys(token).length === 0) {
+        console.error('Invalid token object received:', token);
+        return null;
+      }
+      return JSON.stringify(token);
+    } 
+    
+    if (typeof token === 'string') {
+      if (token === '{}' || token === 'undefined' || token === '') {
+        console.error('Invalid token string received:', token);
+        return null;
+      }
+      // Return the string directly - do not stringify again
+      return token;
     }
-    tokenString = JSON.stringify(token);
-  } else if (typeof token === 'string') {
-    if (token === '{}' || token === 'undefined' || token === '') {
-      console.error('Invalid token string received:', token);
-      setToken(null);
-      return <JoinRoomForm roomId={roomId} onJoin={handleJoin} />;
-    }
-    tokenString = token;
-  } else {
+    
     console.error('Token is neither object nor string:', token);
-    setToken(null);
+    return null;
+  }, [token]);
+  
+  // Handle LiveKit errors with token refresh via state update
+  const handleLiveKitError = useCallback((e: Error) => {
+    console.error('LiveKitRoom connection error:', e);
+    
+    // Check if it's a token error
+    if (e.message?.includes('token') || e.message?.includes('auth')) {
+      console.error('Authentication error, token may be invalid');
+      
+      // Avoid immediate re-render during render phase
+      if (!tokenUpdateRequestedRef.current) {
+        tokenUpdateRequestedRef.current = true;
+        
+        // Force token refresh by clearing it - do this in a setTimeout to avoid render phase updates
+        sessionStorage.setItem('livekit_needs_new_token', 'true');
+        
+        // Schedule token clearing for next event loop
+        setTimeout(() => {
+          setToken(null);
+          tokenUpdateRequestedRef.current = false;
+        }, 0);
+      }
+    }
+  }, []);
+  
+  // Show JoinRoomForm if no token or invalid token
+  if (!token || !tokenString) {
     return <JoinRoomForm roomId={roomId} onJoin={handleJoin} />;
   }
-  
-  console.log('Connecting with token type:', typeof tokenString);
-  console.log('Token validity check - empty: ', tokenString === '{}', 'undefined:', tokenString === 'undefined');
 
   return (
     <div className="h-screen" onClick={(e) => e.stopPropagation()}>
@@ -142,17 +175,10 @@ export default function WhiteboardRoom() {
         connect={true}
         data-lk-theme="default"
         onConnected={handleRoomCreate}
-        onError={(e) => {
-          console.error('LiveKitRoom connection error:', e);
-          // Check if it's a token error
-          if (e.message?.includes('token') || e.message?.includes('auth')) {
-            console.error('Authentication error, token may be invalid');
-            // Force token refresh by clearing it
-            sessionStorage.setItem('livekit_needs_new_token', 'true');
-            // Show the join form again
-            setToken(null);
-          }
+        onDisconnected={(reason) => {
+          console.log('LiveKit disconnected, reason:', reason);
         }}
+        onError={handleLiveKitError}
         options={{ 
           adaptiveStream: true,
           dynacast: true,
@@ -172,30 +198,23 @@ export default function WhiteboardRoom() {
               { width: 640, height: 480, encoding: { maxBitrate: 500_000, maxFramerate: 30 } }
             ]
           },
-          // These settings help prevent context closing
           disconnectOnBrowserClose: false,
           disconnectOnPageUnload: false,
-          // Add audio context configuration to prevent context closing
           audioEnabled: true,
           audioOutput: {
             deviceId: 'default',
           },
-          // Fix for iOS Safari permissions
           stopMicTrackOnMute: false,
           suspendLocalVideoOnInactive: false,
-          // Prevent iOS screen locking while using camera
           screenShareEnabled: true,
           activateInHiddenTab: true,
-          // Additional options to manage audio context
           audio: {
             echoCancellation: true,
             noiseSuppression: true,
             autoGainControl: true
           },
-          // Delay starting media to ensure full connection
           startAudioMuted: true,
           startVideoMuted: true,
-          // Apply more conservative reconnection policy
           reconnectPolicy: {
             maxRetries: 10,
             retryBackoff: 1.7,

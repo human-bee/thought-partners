@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AccessToken } from 'livekit-server-sdk';
+import { AccessToken, TrackSource } from 'livekit-server-sdk';
 // For proper implementation, these packages would need to be installed:
 // npm install @livekit/agents @livekit/agents-plugin-deepgram
 
@@ -80,8 +80,6 @@ export async function POST(request: NextRequest) {
       // Set ALL permissions to true to ensure video/audio works
       canPublishAudio: true,
       canPublishVideo: true,
-      // Include even more explicit permissions to ensure compatibility
-      canPublishSources: { camera: true, microphone: true, screen: true },
       roomAdmin: false, // Not an admin, but a regular user
       roomCreate: false,
     });
@@ -89,79 +87,83 @@ export async function POST(request: NextRequest) {
     console.log('Grant added to token. Generating JWT...');
     
     // Generate the token - properly await the Promise
-    const token = await at.toJwt();
+    console.log('About to generate JWT...');
     
-    console.log('JWT generation complete.');
-    
-    // Validate token before sending
-    if (!token || token === '{}' || token === 'undefined' || token === '[]') {
-      console.error('Failed to generate a valid token:', token);
-      return NextResponse.json(
-        { error: 'Failed to generate a valid token' },
-        { status: 500 }
-      );
-    }
-    
-    // Log token info for debugging
-    console.log(`Generated token for ${identity} with full publishing permissions`);
-    console.log(`Token type: ${typeof token}`);
-    // Only log substring if token is a string
-    if (typeof token === 'string') {
-      console.log(`Token starts with: ${token.substring(0, 15)}...`);
-    } else {
-      console.log('Token is not a string type:', token);
-      return NextResponse.json(
-        { error: 'Generated token is not a string' },
-        { status: 500 }
-      );
-    }
-    
-    // Create AI agent if requested and if required environment variables exist
+    // Initialize agentCreated first to avoid reference error
     let agentCreated = false;
-
-    if (data.createAiAgent && process.env.DEEPGRAM_API_KEY) {
-      // Note: This part would require deploying a separate service
-      // The commented-out code below is a placeholder for how it would work
-      // but would require an actual agent server to implement
+    
+    try {
+      const token = await at.toJwt();
+      console.log('JWT generation complete.');
       
-      /*
-      // Use LiveKit's server-side SDK to create an agent
-      const serverUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL;
-      const apiKey = process.env.LIVEKIT_API_KEY;
-      const apiSecret = process.env.LIVEKIT_API_SECRET;
+      // Validate token before sending
+      if (!token || token === '{}' || token === 'undefined' || token === '[]') {
+        console.error('Failed to generate a valid token:', token);
+        return NextResponse.json(
+          { error: 'Failed to generate a valid token' },
+          { status: 500 }
+        );
+      }
       
-      // Call external agent service
-      const response = await fetch('https://your-agent-service.com/create-agent', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          roomName,
-          serverUrl,
-          apiKey,
-          apiSecret,
-          deepgramApiKey: process.env.DEEPGRAM_API_KEY,
-        }),
-      });
-      
-      const agentResponse = await response.json();
-      agentCreated = agentResponse.success;
-      */
-      
-      // For now, just log that this would happen in a real implementation
-      console.log('Would create AI agent for room:', roomName);
-      agentCreated = false;
+      // Log token info for debugging
+      console.log(`Generated token for ${identity} with full publishing permissions`);
+      console.log(`Token type: ${typeof token}`);
+      // Only log substring if token is a string
+      if (typeof token === 'string') {
+        console.log(`Token starts with: ${token.substring(0, 15)}...`);
+        console.log(`Token length: ${token.length}`);
+        
+        // Create AI agent if requested and if required environment variables exist
+        if (data.createAiAgent && process.env.DEEPGRAM_API_KEY) {
+          // Note: This part would require deploying a separate service
+          // The commented-out code below is a placeholder for how it would work
+          // but would require an actual agent server to implement
+          
+          /*
+          // Use LiveKit's server-side SDK to create an agent
+          const serverUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL;
+          const apiKey = process.env.LIVEKIT_API_KEY;
+          const apiSecret = process.env.LIVEKIT_API_SECRET;
+          
+          // Call external agent service
+          const response = await fetch('https://your-agent-service.com/create-agent', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              roomName,
+              serverUrl,
+              apiKey,
+              apiSecret,
+              deepgramApiKey: process.env.DEEPGRAM_API_KEY,
+            }),
+          });
+          
+          const agentResponse = await response.json();
+          agentCreated = agentResponse.success;
+          */
+          
+          // For now, just log that this would happen in a real implementation
+          console.log('Would create AI agent for room:', roomName);
+          agentCreated = true;
+        }
+        
+        return NextResponse.json({ token, agentCreated });
+      } else {
+        console.log('Token is not a string type:', token);
+        return NextResponse.json(
+          { error: 'Generated token is not a string' },
+          { status: 500 }
+        );
+      }
+    } catch (error) {
+      console.error('Error generating JWT token:', error);
+      return NextResponse.json(
+        { error: `JWT generation failed: ${error instanceof Error ? error.message : 'Unknown error'}` },
+        { status: 500 }
+      );
     }
-    
-    return NextResponse.json({ 
-      success: true,
-      token,
-      identity,
-      url: process.env.NEXT_PUBLIC_LIVEKIT_URL,
-      agentCreated
-    });
-    
   } catch (error: any) {
     console.error('Error creating token:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
