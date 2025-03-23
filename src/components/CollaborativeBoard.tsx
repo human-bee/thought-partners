@@ -41,10 +41,11 @@ interface TLTextShapeProps {
   text: string;
   color: string;
   size: string;
-  w: number;
+  width: number;
   font: string;
   align: string;
   autoSize: boolean;
+  verticalAlign?: string;
 }
 
 // Extend the Editor type to include missing methods
@@ -196,28 +197,28 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
     const editor = editorRef.current;
     
     try {
-      // Create a new text shape
+      // Create a new note shape (better for transcriptions than text)
       const id = createShapeId();
-      // Use any type to avoid type errors with TLTextShape
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const textShape: any = {
+      const noteShape: any = {
         id,
-        type: 'text',
+        type: 'note',
         x: 50 + Math.random() * 400, // Random position
         y: 50 + Math.random() * 400,
         props: {
-          text: `${entry.participantName}: ${entry.text}`,
-          color: 'black',
+          content: `${entry.participantName}: ${entry.text}`,
+          color: 'yellow',
           size: 'm',
-          w: 300,
+          width: 300,
           font: 'draw',
           align: 'start',
-          autoSize: true,
+          verticalAlign: 'middle',
+          growY: true,
         },
       };
       
       // Add the shape to the canvas
-      editor.createShapes([textShape]);
+      editor.createShapes([noteShape]);
     } catch (error) {
       console.error('Error adding transcription to canvas:', error);
     }

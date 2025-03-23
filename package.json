@@ -16,13 +16,15 @@
     "@deepgram/sdk": "^3.11.2",
     "@livekit/components-react": "^2.8.1",
     "@livekit/components-styles": "^1.1.4",
+    "@tldraw/tldraw": "^3.11.0",
     "livekit-client": "^2.9.8",
     "livekit-server-sdk": "^2.10.2",
     "next": "15.2.3",
     "openai": "^4.89.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "tldraw": "^3.11.0"
+    "tldraw": "^3.11.0",
+    "zustand": "^5.0.3"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
