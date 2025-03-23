@@ -303,6 +303,33 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
   const handleMount = useCallback((editor: any) => {
     editorRef.current = editor;
     
+    // Add a watermark "PRESENT" with very low opacity
+    try {
+      const viewport = editor.getViewportPageBounds();
+      const watermarkId = createShapeId();
+      
+      // Create a very light text watermark
+      editor.createShapes([{
+        id: watermarkId,
+        type: 'text',
+        x: viewport.center.x - 200, // Position in center, adjust based on text width
+        y: viewport.center.y - 60,  // Position in center, adjust based on text height
+        props: {
+          text: 'PRESENT',
+          color: 'black',
+          size: 'xl',
+          font: 'draw',
+          align: 'middle',
+          opacity: 0.03, // Very light opacity for watermark effect
+          scale: 4,      // Make it large
+        }
+      }]);
+      
+      console.log('Added PRESENT watermark to canvas');
+    } catch (error) {
+      console.error('Error adding watermark:', error);
+    }
+    
     // Set up editor change listener
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     editor.store.listen((event: any) => {
