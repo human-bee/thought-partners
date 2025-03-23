@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useRoomContext } from '@livekit/components-react';
-import { Editor, createShapeId } from '@tldraw/editor';
+import { Editor, createShapeId, toRichText } from '@tldraw/editor';
 import { Tldraw } from '@tldraw/tldraw';
 import { DataPublishOptions } from 'livekit-client';
 
@@ -17,8 +17,8 @@ export function TestControls() {
     // Look for TLDraw editor instance in the document
     const findEditor = () => {
       const tldrawElement = document.querySelector('[data-testid="tldraw-editor"]');
-      if (tldrawElement && (tldrawElement as any).__editor) {
-        editorRef.current = (tldrawElement as any).__editor;
+      if (tldrawElement && '__editor' in (tldrawElement as HTMLElement)) {
+        editorRef.current = (tldrawElement as HTMLElement & { __editor: Editor }).__editor;
       }
     };
 
@@ -47,14 +47,14 @@ export function TestControls() {
         x: Math.random() * 600,
         y: Math.random() * 400,
         props: {
-          content: text,
+          richText: toRichText(text),
           color: 'yellow',
           size: 'l',
           font: 'draw',
           align: 'middle',
           verticalAlign: 'middle',
           growY: true,
-          width: 300,
+          w: 300,
         }
       };
 
@@ -63,6 +63,10 @@ export function TestControls() {
       console.log('Shape created successfully');
     } catch (error) {
       console.error('Error creating shape:', error);
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
     }
   }, []);
 
@@ -92,8 +96,8 @@ export function TestControls() {
         y: 100 + Math.random() * 200,
         props: {
           geo: 'rectangle',
-          width: 320,
-          height: 200,
+          w: 320,
+          h: 200,
           color: 'light-blue',
           fill: 'solid',
           dash: 'draw',
@@ -102,21 +106,21 @@ export function TestControls() {
       };
       
       // Create text on top with updated properties for TLDraw v3
-      // Text shapes still use 'text' property, only notes use 'content'
       const textId = createShapeId();
+      const textContent = 'This is a text box with background at ' + new Date().toLocaleTimeString();
       const textShape = {
         id: textId,
         type: 'text',
         x: (bgShape.x as number) + 10,
         y: (bgShape.y as number) + 10,
         props: {
-          text: 'This is a text box with background at ' + new Date().toLocaleTimeString(),
+          richText: toRichText(textContent),
           color: 'black',
           size: 'l',
           font: 'draw',
           align: 'start',
           autoSize: true,
-          width: 300,
+          w: 300,
         }
       };
       
@@ -125,6 +129,10 @@ export function TestControls() {
       console.log('Text box with background created successfully');
     } catch (error) {
       console.error('Error creating text box with background:', error);
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
     }
   }, []);
 
@@ -169,14 +177,14 @@ export function TranscriptionCanvas({ roomId }: TranscriptionCanvasProps) {
         x: Math.random() * 600,
         y: Math.random() * 400,
         props: {
-          content: text,
+          richText: toRichText(text),
           color: 'yellow',
           size: 'l',
           font: 'draw',
           align: 'middle',
           verticalAlign: 'middle',
           growY: true,
-          width: 300,
+          w: 300,
         }
       };
 
@@ -193,6 +201,10 @@ export function TranscriptionCanvas({ roomId }: TranscriptionCanvasProps) {
       }
     } catch (error) {
       console.error('Error creating shape:', error);
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
     }
   }, [room]);
 

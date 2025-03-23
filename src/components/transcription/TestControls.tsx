@@ -1,16 +1,53 @@
-import { useEffect, useRef, useCallback } from 'react';
-import { Editor, createShapeId } from '@tldraw/editor';
+import { useEffect, useRef, useCallback, useState } from 'react';
+import { Editor, createShapeId, toRichText } from '@tldraw/editor';
+
+// Define an interface for the extended HTMLElement with the editor property
+interface TLDrawElementWithEditor extends HTMLElement {
+  __editorForTranscription?: Editor;
+  __editor?: Editor;
+}
 
 export function TestControls() {
   const editorRef = useRef<Editor | null>(null);
+  const [isClient, setIsClient] = useState(false);
+
+  // Set isClient to true when component mounts on client
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   // Get editor from the closest Tldraw component
   useEffect(() => {
+    if (!isClient) return; // Skip during SSR
+    
     // Look for TLDraw editor instance in the document
     const findEditor = () => {
+      if (typeof document === 'undefined') return; // Safety check for SSR
+      
+      // Check global window object first (might be set by TranscriptionCanvas)
+      if (window.__editorInstance) {
+        editorRef.current = window.__editorInstance;
+        console.log('TestControls: Found editor via window.__editorInstance');
+        return;
+      }
+      
       const tldrawElement = document.querySelector('[data-testid="tldraw-editor"]');
-      if (tldrawElement && (tldrawElement as any).__editor) {
-        editorRef.current = (tldrawElement as any).__editor;
+      if (tldrawElement) {
+        const element = tldrawElement as TLDrawElementWithEditor;
+        // Try to get editor from our custom property first, then fall back to the default
+        if (element.__editorForTranscription) {
+          editorRef.current = element.__editorForTranscription;
+          console.log('TestControls: Found editor via __editorForTranscription property');
+        } else if (element.__editor) {
+          editorRef.current = element.__editor;
+          console.log('TestControls: Found editor via __editor property');
+        }
+        
+        if (editorRef.current) {
+          console.log('TestControls: Editor is available for use');
+          // Store globally for other components to use
+          window.__editorInstance = editorRef.current;
+        }
       }
     };
 
@@ -18,8 +55,33 @@ export function TestControls() {
     findEditor();
     const timer = setTimeout(findEditor, 1000);
     
-    return () => clearTimeout(timer);
-  }, []);
+    // Try at increasing intervals
+    const secondTimer = setTimeout(findEditor, 3000);
+    const thirdTimer = setTimeout(() => {
+      findEditor();
+      if (!editorRef.current) {
+        console.error('TestControls: Editor still not available after longer timeout. Will continue trying...');
+        
+        // Keep trying at longer intervals
+        const intervalId = setInterval(() => {
+          findEditor();
+          if (editorRef.current) {
+            console.log('TestControls: Editor finally found!');
+            clearInterval(intervalId);
+          }
+        }, 2000);
+        
+        // Clean up interval after a reasonable time
+        setTimeout(() => clearInterval(intervalId), 30000);
+      }
+    }, 5000);
+    
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(secondTimer);
+      clearTimeout(thirdTimer);
+    };
+  }, [isClient]);
 
   const addTranscriptionToCanvas = useCallback((text: string) => {
     console.log('Adding transcription to canvas:', text);
@@ -39,14 +101,13 @@ export function TestControls() {
         x: Math.random() * 600,
         y: Math.random() * 400,
         props: {
-          content: text,
+          richText: toRichText(text),
           color: 'yellow',
           size: 'l',
           font: 'draw',
           align: 'middle',
           verticalAlign: 'middle',
           growY: true,
-          width: 300,
         }
       };
 
@@ -84,8 +145,8 @@ export function TestControls() {
         y: 100 + Math.random() * 200,
         props: {
           geo: 'rectangle',
-          width: 320,
-          height: 200,
+          w: 320,
+          h: 200,
           color: 'light-blue',
           fill: 'solid',
           dash: 'draw',
@@ -94,7 +155,6 @@ export function TestControls() {
       };
       
       // Create text on top with updated properties for TLDraw v3
-      // Text shapes still use 'text' property, only notes use 'content'
       const textId = createShapeId();
       const textShape = {
         id: textId,
@@ -102,13 +162,13 @@ export function TestControls() {
         x: (bgShape.x as number) + 10,
         y: (bgShape.y as number) + 10,
         props: {
-          text: 'This is a text box with background at ' + new Date().toLocaleTimeString(),
+          richText: toRichText('This is a text box with background at ' + new Date().toLocaleTimeString()),
           color: 'black',
           size: 'l',
           font: 'draw',
-          align: 'start',
+          textAlign: 'start',
           autoSize: true,
-          width: 300,
+          w: 300,
         }
       };
       
@@ -136,4 +196,11 @@ export function TestControls() {
       </button>
     </div>
   );
+}
+
+// Add to global Window interface
+declare global {
+  interface Window {
+    __editorInstance?: Editor;
+  }
 } 

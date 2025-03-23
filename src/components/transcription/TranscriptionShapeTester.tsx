@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react';
-import { Editor, createShapeId } from '@tldraw/editor';
+import { Editor, createShapeId, toRichText } from '@tldraw/editor';
 import { Tldraw } from '@tldraw/tldraw';
 
 export function TranscriptionShapeTester() {
@@ -11,19 +11,26 @@ export function TranscriptionShapeTester() {
     
     try {
       const id = createShapeId();
+      const textContent = 'Text shape created at ' + new Date().toLocaleTimeString();
+      
+      console.log('Creating text shape with properties:', {
+        type: 'text',
+        richText: 'Using richText with toRichText()',
+      });
+      
       const textShape = {
         id,
         type: 'text',
         x: 100 + Math.random() * 300,
         y: 100 + Math.random() * 200,
         props: {
-          text: 'Text shape created at ' + new Date().toLocaleTimeString(),
+          richText: toRichText(textContent),
           color: 'black',
           size: 'm',
           font: 'draw',
-          align: 'start',
+          textAlign: 'start',
           autoSize: true,
-          width: 300,
+          w: 300,
         }
       };
       
@@ -31,6 +38,10 @@ export function TranscriptionShapeTester() {
       console.log('Text shape created successfully');
     } catch (error) {
       console.error('Error creating text shape:', error);
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
     }
   }, []);
   
@@ -40,27 +51,38 @@ export function TranscriptionShapeTester() {
     
     try {
       const id = createShapeId();
+      const noteContent = 'Note shape created at ' + new Date().toLocaleTimeString();
+      
+      console.log('Creating note shape with properties:', {
+        type: 'note',
+        richText: 'Using richText with toRichText()',
+      });
+      
       const noteShape = {
         id,
         type: 'note',
         x: 100 + Math.random() * 300,
         y: 100 + Math.random() * 200,
         props: {
-          content: 'Note shape created at ' + new Date().toLocaleTimeString(),
+          richText: toRichText(noteContent),
           color: 'yellow',
           size: 'm',
           font: 'draw',
           align: 'middle',
           verticalAlign: 'middle',
           growY: true,
-          width: 300,
         }
       };
       
+      console.log('About to call editor.createShapes with:', noteShape);
       editor.createShapes([noteShape]);
       console.log('Note shape created successfully');
     } catch (error) {
       console.error('Error creating note shape:', error);
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
     }
   }, []);
   
@@ -70,6 +92,14 @@ export function TranscriptionShapeTester() {
     
     try {
       const id = createShapeId();
+      
+      console.log('Creating geo shape with properties:', {
+        type: 'geo',
+        geo: 'rectangle',
+        w: 320,
+        h: 200,
+      });
+      
       const geoShape = {
         id,
         type: 'geo',
@@ -77,19 +107,25 @@ export function TranscriptionShapeTester() {
         y: 100 + Math.random() * 200,
         props: {
           geo: 'rectangle',
-          width: 320,
-          height: 200,
+          w: 320,
+          h: 200,
           color: 'light-blue',
           fill: 'solid',
           dash: 'draw',
           size: 'm',
+          richText: toRichText('Rectangle created at ' + new Date().toLocaleTimeString()),
         }
       };
       
+      console.log('About to call editor.createShapes with:', geoShape);
       editor.createShapes([geoShape]);
       console.log('Geo shape created successfully');
     } catch (error) {
       console.error('Error creating geo shape:', error);
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
     }
   }, []);
   
@@ -120,6 +156,20 @@ export function TranscriptionShapeTester() {
         onMount={(editor: Editor) => {
           editorRef.current = editor;
           console.log('TLDraw editor mounted for shape testing');
+          
+          console.log('Available shape utils:', Object.keys(editor.shapeUtils));
+          
+          try {
+            const textUtil = editor.getShapeUtil('text');
+            const noteUtil = editor.getShapeUtil('note');
+            const geoUtil = editor.getShapeUtil('geo');
+            
+            console.log('Text shape util default props:', textUtil?.getDefaultProps?.());
+            console.log('Note shape util default props:', noteUtil?.getDefaultProps?.());
+            console.log('Geo shape util default props:', geoUtil?.getDefaultProps?.());
+          } catch (e) {
+            console.error('Error getting shape utils default props:', e);
+          }
         }}
       />
     </div>

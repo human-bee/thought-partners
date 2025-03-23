@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { useParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { VideoConferenceProvider } from '@/contexts/VideoConferenceContext';
 import { TranscriptionProvider } from '@/contexts/TranscriptionContext';
@@ -22,8 +21,10 @@ interface WebKitWindow extends Window {
   webkitAudioContext: typeof AudioContext;
 }
 
-export default function WhiteboardRoom({ params }: { params: { roomId: string } }) {
-  const roomId = params.roomId;
+export default function WhiteboardRoom({ params }: { params: Promise<{ roomId: string }> }) {
+  // Use React.use to unwrap the params Promise
+  const resolvedParams = React.use(params);
+  const roomId = resolvedParams.roomId;
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const roomRef = useRef<Room | null>(null);
