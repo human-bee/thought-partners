@@ -1,6 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRoomContext } from '@livekit/components-react';
 import { DataPacket_Kind, DataPublishOptions } from 'livekit-client';
+import { Editor } from '@tldraw/editor';
+
+// Add global window type augmentation
+declare global {
+  interface Window {
+    __editorInstance?: Editor;
+  }
+}
 
 interface SpeechRecognitionHook {
   isTranscribing: boolean;
@@ -55,7 +63,7 @@ export function useSpeechRecognition(): SpeechRecognitionHook {
       }
     };
     
-    recognitionInstance.onresult = (event) => {
+    recognitionInstance.onresult = async (event) => {
       console.log('Speech recognition result received:', event);
       
       for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -68,25 +76,73 @@ export function useSpeechRecognition(): SpeechRecognitionHook {
           
           // Send the final transcript
           if (room?.localParticipant && finalTranscript !== '') {
-            // Updated format to match what CollaborativeBoard expects
-            const jsonData = JSON.stringify({
-              type: 'transcription',
-              participantIdentity: room.localParticipant.identity,
-              participantName: room.localParticipant.identity,
-              text: finalTranscript
+            try {
+              // Create the inner data object
+              const transcriptionData = {
+                type: 'transcription',
+                participantIdentity: room.localParticipant.identity,
+                participantName: room.localParticipant.identity,
+                text: finalTranscript
+              };
+              
+              console.log('Preparing transcription data object:', transcriptionData);
+              
+              // Wrap in a message with topic for proper handling
+              const wrappedData = {
+                topic: 'transcription',
+                data: JSON.stringify(transcriptionData)
+              };
+              
+              const jsonString = JSON.stringify(wrappedData);
+              console.log('Serialized wrapped data:', jsonString);
+              
+              // Send to both components with the same format
+              const data = new TextEncoder().encode(jsonString);
+              const options: DataPublishOptions = { reliable: true };
+              console.log('About to publish data with options:', options);
+              
+              // Log full data chain for debugging
+              console.log('Full data chain:', {
+                originalTranscript: finalTranscript,
+                innerObject: transcriptionData,
+                wrappedObject: wrappedData,
+                serializedString: jsonString,
+                byteLength: data.byteLength
+              });
+              
+              room.localParticipant.publishData(data, options);
+              console.log('Transcription data published successfully');
+              
+              // Direct test to verify editor is working
+              if (window.__editorInstance) {
+                console.log('Test: directly creating note via window.__editorInstance');
+                const { createShapeId, toRichText } = await import('@tldraw/editor');
+                const id = createShapeId();
+                window.__editorInstance.createShapes([{
+                  id,
+                  type: 'note',
+                  x: window.__editorInstance.getViewportPageBounds().center.x,
+                  y: window.__editorInstance.getViewportPageBounds().center.y,
+                  props: {
+                    richText: toRichText(`DIRECT TEST: ${finalTranscript}`),
+                    color: 'yellow',
+                    size: 'l',
+                    font: 'draw',
+                    align: 'middle',
+                    verticalAlign: 'middle',
+                    growY: true,
+                  }
+                }]);
+              }
+            } catch (error) {
+              console.error('Error publishing transcription data:', error);
+            }
+          } else {
+            console.warn('Could not publish transcription. Room or participant not available, or transcript empty.', {
+              roomAvailable: !!room,
+              participantAvailable: !!room?.localParticipant,
+              transcriptEmpty: finalTranscript === ''
             });
-            
-            // Wrap in a message with topic for proper handling
-            const wrappedData = JSON.stringify({
-              topic: 'transcription',
-              data: jsonData
-            });
-            
-            console.log('Publishing transcription data:', wrappedData);
-            
-            const data = new TextEncoder().encode(wrappedData);
-            const options: DataPublishOptions = { reliable: true };
-            room.localParticipant.publishData(data, options);
           }
         }
       }

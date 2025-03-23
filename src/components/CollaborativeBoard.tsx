@@ -144,14 +144,28 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
       try {
         // Convert the Uint8Array to string
         const jsonString = new TextDecoder().decode(dataPacket);
+        console.log('CollaborativeBoard received data:', jsonString);
+        
         const dataMessage = JSON.parse(jsonString);
+        console.log('CollaborativeBoard parsed data message:', dataMessage);
         
-        if (dataMessage.topic !== 'tldraw' && dataMessage.topic !== 'transcription') return;
+        if (dataMessage.topic !== 'tldraw' && dataMessage.topic !== 'transcription') {
+          console.log('CollaborativeBoard ignoring message with topic:', dataMessage.topic);
+          return;
+        }
         
-        const data = JSON.parse(dataMessage.data);
+        let data;
+        try {
+          data = JSON.parse(dataMessage.data);
+          console.log('CollaborativeBoard parsed inner data:', data);
+        } catch (error) {
+          console.error('CollaborativeBoard error parsing inner data:', error);
+          return;
+        }
         
         // Handle tldraw updates
         if (dataMessage.topic === 'tldraw' && data.type === 'tlDrawUpdate' && store) {
+          console.log('CollaborativeBoard handling tldraw update');
           store.mergeRemoteChanges(() => {
             store.put(data.changes);
           });
@@ -159,6 +173,12 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
         
         // Handle transcription
         if (dataMessage.topic === 'transcription' && data.type === 'transcription' && editorRef.current) {
+          console.log('CollaborativeBoard handling transcription:', {
+            data: data,
+            editorAvailable: !!editorRef.current,
+            editorRef: editorRef
+          });
+          
           addTranscriptionToCanvas({
             participantIdentity: data.participantIdentity,
             participantName: data.participantName,
@@ -192,13 +212,27 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
 
   // Function to add transcription to the canvas
   const addTranscriptionToCanvas = useCallback((entry: TranscriptionEntry) => {
-    if (!editorRef.current) return;
+    console.log('CollaborativeBoard: Adding transcription to canvas:', entry);
+    if (!editorRef.current) {
+      console.warn('Editor ref is not available in CollaborativeBoard', {
+        editorRefExists: !!editorRef,
+        editorRefCurrent: !!editorRef.current
+      });
+      return;
+    }
     
     const editor = editorRef.current;
+    console.log('Editor instance is available:', editor);
     
     try {
       // Create a new note shape (better for transcriptions than text)
       const id = createShapeId();
+      console.log('Generated shape ID:', id);
+      
+      // Format the transcription content
+      const displayText = `${entry.participantName}: ${entry.text}`;
+      console.log('Creating note with text:', displayText);
+      
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const noteShape: any = {
         id,
@@ -206,7 +240,7 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
         x: 50 + Math.random() * 400, // Random position
         y: 50 + Math.random() * 400,
         props: {
-          content: `${entry.participantName}: ${entry.text}`,
+          content: displayText,
           color: 'yellow',
           size: 'm',
           width: 300,
@@ -217,10 +251,32 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
         },
       };
       
+      console.log('Note shape object:', noteShape);
+      console.log('Editor shape utils available:', Object.keys(editor.shapeUtils));
+      
+      // Check if note shape is supported
+      try {
+        const noteUtil = editor.getShapeUtil('note');
+        console.log('Note shape util:', noteUtil, 'Default props:', noteUtil?.getDefaultProps?.());
+      } catch (e) {
+        console.warn('Error getting note shape util:', e);
+      }
+      
       // Add the shape to the canvas
+      console.log('About to call editor.createShapes');
       editor.createShapes([noteShape]);
+      console.log('Successfully called createShapes');
+      
+      // Verify the shape was created
+      const createdShape = editor.getShape(id);
+      console.log('Shape created verification:', createdShape);
+      
     } catch (error) {
       console.error('Error adding transcription to canvas:', error);
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      }
     }
   }, []);
 
