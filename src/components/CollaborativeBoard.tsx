@@ -312,20 +312,20 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
       editor.createShapes([{
         id: watermarkId,
         type: 'text',
-        x: viewport.center.x - 200, // Position in center, adjust based on text width
-        y: viewport.center.y - 60,  // Position in center, adjust based on text height
+        x: viewport.center.x - 300, // Better horizontal centering for large text
+        y: viewport.center.y - 80,  // Better vertical centering for large text
         props: {
           text: 'PRESENT',
           color: 'black',
           size: 'xl',
           font: 'draw',
           align: 'middle',
-          opacity: 0.03, // Very light opacity for watermark effect
-          scale: 4,      // Make it large
+          opacity: 0.15, // Increased from 0.03 to 0.15 for better visibility
+          scale: 5,      // Increased from 4 to 5 for larger size
         }
       }]);
       
-      console.log('Added PRESENT watermark to canvas');
+      console.log('Added PRESENT watermark to canvas as a tldraw text shape');
     } catch (error) {
       console.error('Error adding watermark:', error);
     }
