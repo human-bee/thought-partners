@@ -308,24 +308,31 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
       const viewport = editor.getViewportPageBounds();
       const watermarkId = createShapeId();
       
-      // Create a very light text watermark
-      editor.createShapes([{
-        id: watermarkId,
-        type: 'text',
-        x: viewport.center.x - 300, // Better horizontal centering for large text
-        y: viewport.center.y - 80,  // Better vertical centering for large text
-        props: {
-          text: 'PRESENT',
-          color: 'black',
-          size: 'xl',
-          font: 'draw',
-          align: 'middle',
-          opacity: 0.15, // Increased from 0.03 to 0.15 for better visibility
-          scale: 5,      // Increased from 4 to 5 for larger size
-        }
-      }]);
-      
-      console.log('Added PRESENT watermark to canvas as a tldraw text shape');
+      // Slight delay to make sure it's placed on top
+      setTimeout(() => {
+        // Create a fully opaque text watermark
+        editor.createShapes([{
+          id: watermarkId,
+          type: 'text',
+          x: viewport.center.x - 300, // Better horizontal centering for large text
+          y: viewport.center.y - 80,  // Better vertical centering for large text
+          props: {
+            text: 'PRESENT',
+            color: 'black',
+            size: 'xl',
+            font: 'draw',
+            align: 'middle',
+            opacity: 1.0, // Full opacity to ensure visibility
+            scale: 5,     // Large size
+          }
+        }]);
+        
+        console.log('Added fully visible PRESENT watermark to canvas as a tldraw text shape');
+        
+        // Make sure it's on top by bringing it to front
+        editor.bringToFront([watermarkId]);
+      }, 500); // Half-second delay to ensure it's on top
+
     } catch (error) {
       console.error('Error adding watermark:', error);
     }
