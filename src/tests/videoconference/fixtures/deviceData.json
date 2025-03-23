@@ -1,0 +1,51 @@
+{
+  "availableDevices": {
+    "videoCaptureDevices": [
+      {
+        "deviceId": "video-device-1",
+        "groupId": "group-1",
+        "kind": "videoinput",
+        "label": "FaceTime HD Camera"
+      },
+      {
+        "deviceId": "video-device-2",
+        "groupId": "group-2",
+        "kind": "videoinput",
+        "label": "External USB Camera"
+      }
+    ],
+    "audioInputDevices": [
+      {
+        "deviceId": "audio-input-1",
+        "groupId": "group-3",
+        "kind": "audioinput",
+        "label": "Built-in Microphone"
+      },
+      {
+        "deviceId": "audio-input-2",
+        "groupId": "group-4",
+        "kind": "audioinput",
+        "label": "Headset Microphone"
+      }
+    ],
+    "audioOutputDevices": [
+      {
+        "deviceId": "audio-output-1",
+        "groupId": "group-5",
+        "kind": "audiooutput",
+        "label": "Built-in Speakers"
+      },
+      {
+        "deviceId": "audio-output-2",
+        "groupId": "group-6",
+        "kind": "audiooutput",
+        "label": "Bluetooth Headphones"
+      }
+    ]
+  },
+  "selectedDevices": {
+    "videoDeviceId": "video-device-1",
+    "audioInputDeviceId": "audio-input-1",
+    "audioOutputDeviceId": "audio-output-1"
+  }
+} 

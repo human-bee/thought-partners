@@ -145,21 +145,23 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
 
   // Memoize the entire Tldraw component to prevent unnecessary re-renders
   const tldrawComponent = useMemo(() => {
-    if (!store) return <div>Loading whiteboard...</div>;
+    if (!store) return <div className="w-full h-full flex items-center justify-center">Loading whiteboard...</div>;
 
     return (
-      <Tldraw
-        store={store}
-        persistenceKey={roomId}
-        onEditorStateChange={handleEditorChange}
-      />
+      <div className="w-full h-full">
+        <Tldraw
+          store={store}
+          persistenceKey={roomId}
+          onEditorStateChange={handleEditorChange}
+        />
+      </div>
     );
   }, [store, roomId, handleEditorChange]);
 
   console.timeEnd(`CollaborativeBoard render ${renderCountRef.current}`);
   
   return (
-    <div className="h-full w-full">
+    <div className="h-full w-full overflow-hidden bg-white">
       {tldrawComponent}
     </div>
   );

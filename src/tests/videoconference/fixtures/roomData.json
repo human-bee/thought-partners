@@ -1,0 +1,20 @@
+{
+  "testRoom": {
+    "name": "test-room",
+    "url": "wss://mock-livekit-server.example.com",
+    "token": "mock-token-xyz-123",
+    "identity": "test-user"
+  },
+  "emptyRoom": {
+    "name": "empty-room",
+    "url": "wss://mock-livekit-server.example.com",
+    "token": "",
+    "identity": "empty-user"
+  },
+  "reconnectRoom": {
+    "name": "reconnect-room",
+    "url": "wss://mock-livekit-server.example.com",
+    "token": "mock-reconnect-token",
+    "identity": "reconnect-user"
+  }
+} 

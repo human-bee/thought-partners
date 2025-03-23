@@ -1,0 +1,36 @@
+{
+  "localParticipant": {
+    "identity": "local-user",
+    "name": "Local User",
+    "metadata": "{\"avatar\":\"https://example.com/avatar1.png\"}",
+    "audioLevel": 0,
+    "connectionQuality": 1,
+    "isSpeaking": false
+  },
+  "remoteParticipants": [
+    {
+      "identity": "remote-user-1",
+      "name": "Remote User 1",
+      "metadata": "{\"avatar\":\"https://example.com/avatar2.png\"}",
+      "audioLevel": 0.2,
+      "connectionQuality": 1,
+      "isSpeaking": false
+    },
+    {
+      "identity": "remote-user-2",
+      "name": "Remote User 2",
+      "metadata": "{\"avatar\":\"https://example.com/avatar3.png\"}",
+      "audioLevel": 0,
+      "connectionQuality": 0.8,
+      "isSpeaking": false
+    },
+    {
+      "identity": "remote-user-3",
+      "name": "Remote User 3",
+      "metadata": "{\"avatar\":\"https://example.com/avatar4.png\"}",
+      "audioLevel": 0.5,
+      "connectionQuality": 0.6,
+      "isSpeaking": true
+    }
+  ]
+} 
