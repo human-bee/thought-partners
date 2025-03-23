@@ -8,6 +8,7 @@ A real-time collaborative application built with Next.js that combines a whitebo
 - **Video conferencing** with LiveKit for real-time communication
 - **Room-based collaboration** where users can join specific rooms 
 - **Authentication** with user identity and LiveKit tokens
+- **Speech-to-text transcription** that automatically adds notes to the whiteboard from spoken conversation
 
 ## Prerequisites
 
@@ -52,6 +53,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 2. Enter your name to join the room
 3. Use the whiteboard on the left side for drawing and collaboration
 4. The video conference will appear on the right side, allowing you to see and speak with other participants in the room
+5. Click "Start Transcribing" to enable speech-to-text transcription that will create notes on the whiteboard from speech
 
 ## Architecture
 
