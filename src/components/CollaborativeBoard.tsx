@@ -1,7 +1,8 @@
-import { Tldraw, createTLStore, defaultShapeUtils, createShapeId, TLTextShape } from 'tldraw';
+import { Tldraw, createTLStore, defaultShapeUtils, createShapeId } from 'tldraw';
 import { useEffect, useState, useCallback, useMemo, useRef, memo } from 'react';
 import 'tldraw/tldraw.css';
 import { useLocalParticipant, useRoomContext } from '@livekit/components-react';
+import { DataPacket_Kind } from 'livekit-client';
 
 // Add render counter
 let renderCount = 0;
@@ -15,6 +16,41 @@ interface TranscriptionEntry {
   participantName: string;
   text: string;
   timestamp: Date;
+}
+
+interface DataMessage {
+  topic: string;
+  data: string;
+}
+
+// Extend the Room type to include LiveKit's actual properties
+interface ExtendedRoom extends Room {
+  dataReceived: {
+    on: (callback: (data: Uint8Array) => void) => void;
+    off: (callback: (data: Uint8Array) => void) => void;
+  };
+  localParticipant: {
+    identity: string;
+    name: string;
+    publishData: (data: Uint8Array, kind: DataPacket_Kind) => void;
+  };
+}
+
+// Define TLTextShapeProps to match actual implementation
+interface TLTextShapeProps {
+  text: string;
+  color: string;
+  size: string;
+  w: number;
+  font: string;
+  align: string;
+  autoSize: boolean;
+}
+
+// Extend the Editor type to include missing methods
+interface ExtendedEditor extends Editor {
+  getChanges: () => any[];
+  createShapes: (shapes: any[]) => void;
 }
 
 // Wrap with memo to prevent unnecessary rerenders
@@ -31,9 +67,11 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
   const roomContext = useRoomContext();
   const localParticipant = localParticipantData?.localParticipant;
   const storeInitializedRef = useRef(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const editorRef = useRef<any>(null);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
+  const recognitionInitializedRef = useRef(false);
 
   // Debug: Track state changes
   const prevStoreRef = useRef(store);
@@ -61,7 +99,11 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
       console.log(`CollaborativeBoard unmounting: render count was ${renderCountRef.current}`);
       // Stop transcription when component unmounts
       if (recognition) {
-        recognition.stop();
+        try {
+          recognition.stop();
+        } catch (e) {
+          console.warn('Error stopping recognition on unmount:', e);
+        }
       }
     };
   }, [recognition]);
@@ -89,13 +131,20 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
 
   // Set up LiveKit data channel for store synchronization and transcriptions
   useEffect(() => {
-    if (!store || !roomContext?.room || !roomContext.room.dataReceived) return;
+    // Use safe type assertions for LiveKit
+    if (!store || !roomContext) return;
     
-    const room = roomContext.room;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const room = roomContext as any;
+    if (!room.dataReceived) return;
     
     // Set up handler for incoming data messages
-    const handleDataReceived = (dataMessage: any) => {
+    const handleDataReceived = (dataPacket: Uint8Array) => {
       try {
+        // Convert the Uint8Array to string
+        const jsonString = new TextDecoder().decode(dataPacket);
+        const dataMessage = JSON.parse(jsonString);
+        
         if (dataMessage.topic !== 'tldraw' && dataMessage.topic !== 'transcription') return;
         
         const data = JSON.parse(dataMessage.data);
@@ -130,12 +179,12 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
     
     return () => {
       // Safely remove event listener
-      if (room && room.dataReceived) {
-        try {
+      try {
+        if (room && room.dataReceived) {
           room.dataReceived.off(handleDataReceived);
-        } catch (e) {
-          console.warn('Error removing data listener:', e);
         }
+      } catch (e) {
+        console.warn('Error removing data listener:', e);
       }
     };
   }, [store, roomContext]);
@@ -146,60 +195,91 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
     
     const editor = editorRef.current;
     
-    // Create a new text shape
-    const id = createShapeId();
-    const textShape: TLTextShape = {
-      id,
-      type: 'text',
-      x: 50 + Math.random() * 400, // Random position
-      y: 50 + Math.random() * 400,
-      props: {
-        // @ts-ignore - The type definition may not match the actual implementation
-        text: `${entry.participantName}: ${entry.text}`,
-        color: 'black',
-        size: 'm',
-        w: 300,
-        font: 'draw',
-        align: 'start',
-        autoSize: true,
-      },
-    };
-    
-    // Add the shape to the canvas
-    editor.createShapes([textShape]);
+    try {
+      // Create a new text shape
+      const id = createShapeId();
+      // Use any type to avoid type errors with TLTextShape
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const textShape: any = {
+        id,
+        type: 'text',
+        x: 50 + Math.random() * 400, // Random position
+        y: 50 + Math.random() * 400,
+        props: {
+          text: `${entry.participantName}: ${entry.text}`,
+          color: 'black',
+          size: 'm',
+          w: 300,
+          font: 'draw',
+          align: 'start',
+          autoSize: true,
+        },
+      };
+      
+      // Add the shape to the canvas
+      editor.createShapes([textShape]);
+    } catch (error) {
+      console.error('Error adding transcription to canvas:', error);
+    }
   }, []);
 
   // Memoize publishData function to reduce dependency changes
   const publishData = useCallback((data: string, topic: string) => {
     if (!localParticipant) return;
-    localParticipant.publishData(data, topic);
-  }, [localParticipant]);
-
-  // Handle editor changes with stable dependencies
-  const handleEditorChange = useCallback((editor: any) => {
-    if (!localParticipant || !roomContext?.room) return;
-    editorRef.current = editor;
     
     try {
-      // Get changes from the editor
-      const changes = editor.getChanges();
-      if (changes.length === 0) return;
+      // Convert string to Uint8Array for LiveKit's publishData
+      const jsonString = JSON.stringify({ topic, data });
+      const encoder = new TextEncoder();
+      const uint8Array = encoder.encode(jsonString);
       
-      // Send changes to other participants using memoized function
-      publishData(
-        JSON.stringify({
-          type: 'tlDrawUpdate',
-          changes: changes,
-        }),
-        'tldraw'
-      );
+      // Use any type to avoid type errors
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (localParticipant as any).publishData(uint8Array, DataPacket_Kind.RELIABLE);
     } catch (error) {
-      console.error('Error publishing drawing updates:', error);
+      console.error('Error publishing data:', error);
     }
+  }, [localParticipant]);
+
+  // Store editor reference and handle changes
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleMount = useCallback((editor: any) => {
+    editorRef.current = editor;
+    
+    // Set up editor change listener
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    editor.store.listen((event: any) => {
+      if (!localParticipant || !roomContext) return;
+      
+      try {
+        if (event.source !== 'user') return;
+        
+        // Get changes from the editor if available
+        if (typeof editor.getChanges === 'function') {
+          const changes = editor.getChanges();
+          
+          if (changes && changes.length > 0) {
+            publishData(
+              JSON.stringify({
+                type: 'tlDrawUpdate',
+                changes: changes,
+              }),
+              'tldraw'
+            );
+          }
+        }
+      } catch (error) {
+        console.error('Error publishing drawing updates:', error);
+      }
+    });
   }, [localParticipant, roomContext, publishData]);
 
   // Set up browser speech recognition
   useEffect(() => {
+    // Skip if already initialized or if we're in an unmounted state
+    if (recognitionInitializedRef.current || !roomContext) return;
+    recognitionInitializedRef.current = true;
+    
     if (!window.SpeechRecognition && !window.webkitSpeechRecognition) {
       console.error('Speech recognition not supported in this browser');
       return;
@@ -227,21 +307,12 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
     recognitionInstance.onend = () => {
       console.log('Speech recognition ended');
       setIsTranscribing(false);
-      // Try to restart if not intentionally stopped
-      if (isTranscribing) {
-        try {
-          recognitionInstance.start();
-        } catch (e) {
-          console.warn('Could not restart speech recognition:', e);
-        }
-      }
+      // Don't auto-restart to avoid cascading issues
     };
     
     let finalTranscript = '';
     
     recognitionInstance.onresult = (event) => {
-      let interimTranscript = '';
-      
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const transcript = event.results[i][0].transcript;
         
@@ -249,36 +320,59 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
           finalTranscript = transcript;
           
           // Send the final transcript
-          if (roomContext?.room?.localParticipant && finalTranscript.trim() !== '') {
-            publishData(
-              JSON.stringify({
-                type: 'transcription',
-                participantIdentity: roomContext.room.localParticipant.identity,
-                participantName: roomContext.room.localParticipant.name || 'You',
-                text: finalTranscript.trim()
-              }),
-              'transcription'
-            );
+          if (roomContext && finalTranscript.trim() !== '') {
+            // Use any type to avoid type errors
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const room = roomContext as any;
+            if (room.localParticipant) {
+              publishData(
+                JSON.stringify({
+                  type: 'transcription',
+                  participantIdentity: room.localParticipant.identity,
+                  participantName: room.localParticipant.name || 'You',
+                  text: finalTranscript.trim()
+                }),
+                'transcription'
+              );
+            }
           }
           
           finalTranscript = '';
-        } else {
-          interimTranscript = transcript;
         }
       }
     };
     
     setRecognition(recognitionInstance);
-  }, [roomContext, publishData, isTranscribing]);
+    
+    return () => {
+      // Cleanup properly to avoid repetitive start/stops
+      try {
+        if (recognitionInstance) {
+          recognitionInstance.stop();
+        }
+      } catch (e) {
+        console.warn('Error stopping speech recognition on cleanup:', e);
+      }
+      recognitionInitializedRef.current = false;
+    };
+  }, [roomContext, publishData]);
 
   // UI control for transcription
   const toggleTranscription = useCallback(() => {
     if (isTranscribing && recognition) {
-      recognition.stop();
-      setIsTranscribing(false);
+      try {
+        recognition.stop();
+        setIsTranscribing(false);
+      } catch (e) {
+        console.error('Error stopping recognition:', e);
+      }
     } else if (recognition) {
-      recognition.start();
-      setIsTranscribing(true);
+      try {
+        recognition.start();
+        setIsTranscribing(true);
+      } catch (e) {
+        console.error('Error starting recognition:', e);
+      }
     }
   }, [isTranscribing, recognition]);
 
@@ -290,12 +384,11 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
       <div className="w-full h-full">
         <Tldraw
           store={store}
-          persistenceKey={roomId}
-          onEditorStateChange={handleEditorChange}
+          onMount={handleMount}
         />
       </div>
     );
-  }, [store, roomId, handleEditorChange]);
+  }, [store, handleMount]);
 
   console.timeEnd(`CollaborativeBoard render ${renderCountRef.current}`);
   
