@@ -1,36 +1,38 @@
 /**
- * VideoLogger - Utility for consistent logging in VideoConference components
+ * VideoLogger - A simple logging utility that provides consistent logging across the application.
+ * This allows for easy enabling/disabling of different log levels in different environments.
  */
-export class VideoLogger {
-  private static PREFIX = '[VideoConference]';
-  
+
+const isDebugMode = process.env.NODE_ENV === 'development';
+
+export const VideoLogger = {
+  /**
+   * Log debug messages - only displayed in development mode
+   */
+  debug: (message: string, ...args: any[]) => {
+    if (isDebugMode) {
+      console.debug(`[DEBUG] ${message}`, ...args);
+    }
+  },
+
   /**
    * Log informational messages
    */
-  public static info(message: string, ...args: any[]): void {
-    console.info(`${this.PREFIX} ${message}`, ...args);
-  }
-  
+  info: (message: string, ...args: any[]) => {
+    console.info(`[INFO] ${message}`, ...args);
+  },
+
   /**
    * Log warning messages
    */
-  public static warn(message: string, ...args: any[]): void {
-    console.warn(`${this.PREFIX} ${message}`, ...args);
-  }
-  
+  warn: (message: string, ...args: any[]) => {
+    console.warn(`[WARN] ${message}`, ...args);
+  },
+
   /**
    * Log error messages
    */
-  public static error(message: string, ...args: any[]): void {
-    console.error(`${this.PREFIX} ${message}`, ...args);
+  error: (message: string, ...args: any[]) => {
+    console.error(`[ERROR] ${message}`, ...args);
   }
-  
-  /**
-   * Log debug messages (only in development)
-   */
-  public static debug(message: string, ...args: any[]): void {
-    if (process.env.NODE_ENV !== 'production') {
-      console.debug(`${this.PREFIX} ${message}`, ...args);
-    }
-  }
-} 
+}; 

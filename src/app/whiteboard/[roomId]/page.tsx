@@ -11,6 +11,8 @@ import JoinRoomForm from '@/components/JoinRoomForm';
 import { Room } from 'livekit-client';
 import { clientEnv } from '@/utils/clientEnv';
 import TranscriptionBoard from '@/components/TranscriptionBoard';
+import { useParams } from 'next/navigation';
+import TranscriptionDebugger from '@/components/TranscriptionDebugger';
 
 // Dynamically import components to reduce initial load time and prevent unnecessary renders
 const LiveKitRoom = dynamic(() => import('@livekit/components-react').then(mod => mod.LiveKitRoom), { ssr: false });
@@ -21,14 +23,31 @@ interface WebKitWindow extends Window {
   webkitAudioContext: typeof AudioContext;
 }
 
-export default function WhiteboardRoom({ params }: { params: { roomId: string } }) {
-  const { roomId } = params;
+export default function WhiteboardRoom() {
+  // Use useParams hook instead of destructuring params directly
+  const params = useParams();
+  const roomId = params?.roomId as string;
+  const [showDebugger, setShowDebugger] = useState(false);
+  
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const roomRef = useRef<Room | null>(null);
   const tokenUpdateRequestedRef = useRef(false);
   const [liveKitError, setLiveKitError] = useState<string | null>(null);
   const [needTokenRefresh, setNeedTokenRefresh] = useState(false);
+  
+  // Toggle debugger when pressing Ctrl+Shift+D
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+        e.preventDefault();
+        setShowDebugger(prev => !prev);
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
   
   // Initialize audio context
   useEffect(() => {
@@ -225,6 +244,17 @@ export default function WhiteboardRoom({ params }: { params: { roomId: string } 
                     </div>
                     
                     <TranscriptionBoardWrapper roomId={roomId} />
+                    
+                    {showDebugger && <TranscriptionDebugger />}
+                    
+                    <div className="absolute top-4 left-4 z-50">
+                      <button
+                        onClick={() => setShowDebugger(prev => !prev)}
+                        className="bg-gray-800 text-white px-3 py-1 text-sm rounded"
+                      >
+                        {showDebugger ? 'Hide Debugger' : 'Debug'}
+                      </button>
+                    </div>
                   </div>
                 </LiveKitRoom>
               </TranscriptionProvider>
