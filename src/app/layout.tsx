@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { EnvInitializer } from "./EnvInitializer";
+import { TranscriptionProvider } from '@/contexts/TranscriptionContext';
+import { TimelineProvider } from '@/contexts/TimelineContext';
 
 // Metadata can only be exported from a Server Component
 export const metadata: Metadata = {
@@ -31,7 +33,11 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <EnvInitializer />
-        {children}
+        <TranscriptionProvider>
+          <TimelineProvider>
+            {children}
+          </TimelineProvider>
+        </TranscriptionProvider>
       </body>
     </html>
   );

@@ -115,36 +115,8 @@ export async function POST(request: NextRequest) {
         
         // Create AI agent if requested and if required environment variables exist
         if (data.createAiAgent && process.env.DEEPGRAM_API_KEY) {
-          // Note: This part would require deploying a separate service
-          // The commented-out code below is a placeholder for how it would work
-          // but would require an actual agent server to implement
-          
-          /*
-          // Use LiveKit's server-side SDK to create an agent
-          const serverUrl = process.env.NEXT_PUBLIC_LIVEKIT_URL;
-          const apiKey = process.env.LIVEKIT_API_KEY;
-          const apiSecret = process.env.LIVEKIT_API_SECRET;
-          
-          // Call external agent service
-          const response = await fetch('https://your-agent-service.com/create-agent', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              roomName,
-              serverUrl,
-              apiKey,
-              apiSecret,
-              deepgramApiKey: process.env.DEEPGRAM_API_KEY,
-            }),
-          });
-          
-          const agentResponse = await response.json();
-          agentCreated = agentResponse.success;
-          */
-          
-          // For now, just log that this would happen in a real implementation
+          // e.g. call external agent service...
+          // agentCreated = true;
           console.log('Would create AI agent for room:', roomName);
           agentCreated = true;
         }

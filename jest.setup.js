@@ -55,30 +55,34 @@ Object.defineProperty(window, 'localStorage', {
   writable: true
 });
 
-// Suppressing console error/warnings during tests
+// Clean up all mocks after each test
+afterEach(() => {
+  jest.clearAllMocks();
+});
+
+// More targeted suppression of specific React warnings
+// that occur during testing but don't affect test results
 const originalConsoleError = console.error;
-const originalConsoleWarn = console.warn;
-console.error = (...args) => {
-  if (
-    args[0]?.includes?.('Warning: ReactDOM.render is no longer supported') ||
-    args[0]?.includes?.('Warning: React does not recognize the') ||
-    args[0]?.includes?.('Error: Not implemented') ||
-    args[0]?.includes?.('Warning: An update to') ||
-    args[0]?.includes?.('Warning: useLayoutEffect does nothing on the server')
-  ) {
+console.error = (msg, ...rest) => {
+  // Only ignore specific warnings that are known and safe to ignore
+  if (typeof msg === 'string' && (
+    msg.includes('useLayoutEffect does nothing on the server') ||
+    msg.includes('Warning: ReactDOM.render is no longer supported')
+  )) {
     return;
   }
-  originalConsoleError(...args);
+  originalConsoleError(msg, ...rest);
 };
 
-console.warn = (...args) => {
-  if (
-    args[0]?.includes?.('Warning: React does not recognize the') ||
-    args[0]?.includes?.('Warning: Unknown prop')
-  ) {
+const originalConsoleWarn = console.warn;
+console.warn = (msg, ...rest) => {
+  // Only ignore specific warnings that are known and safe to ignore
+  if (typeof msg === 'string' && (
+    msg.includes('Warning: Unknown prop')
+  )) {
     return;
   }
-  originalConsoleWarn(...args);
+  originalConsoleWarn(msg, ...rest);
 };
 
 // Mock for RTCPeerConnection
@@ -128,9 +132,4 @@ global.fetch = jest.fn().mockImplementation(() =>
     ok: true,
     json: () => Promise.resolve({ token: 'mock-livekit-token' })
   })
-);
-
-// Clean up all mocks after each test
-afterEach(() => {
-  jest.clearAllMocks();
-}); 
+); 

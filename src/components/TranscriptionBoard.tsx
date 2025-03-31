@@ -4,6 +4,8 @@ import { TranscriptionControls } from './transcription/TranscriptionControls';
 import { TestControls } from './transcription/TestControls';
 import { TranscriptionShapeTester } from './transcription/TranscriptionShapeTester';
 import { useTranscriptionContext } from '@/contexts/TranscriptionContext';
+import { useTimelineContext } from '@/contexts/TimelineContext';
+import { Timeline } from './Timeline';
 
 export default function TranscriptionBoard({ roomId }: { roomId: string }) {
   const [showTester, setShowTester] = useState(false);
@@ -14,8 +16,12 @@ export default function TranscriptionBoard({ roomId }: { roomId: string }) {
     setShowDebugger 
   } = useTranscriptionContext();
   
+  // Get timeline context
+  const { isTimelineActive, setTimelineActive } = useTimelineContext();
+  
   const toggleTranscription = () => setShowTranscription(prev => !prev);
   const toggleDebugger = () => setShowDebugger(prev => !prev);
+  const toggleTimeline = () => setTimelineActive(prev => !prev);
   
   return (
     <div className="relative w-full h-full">
@@ -24,6 +30,7 @@ export default function TranscriptionBoard({ roomId }: { roomId: string }) {
       ) : (
         <>
           <TranscriptionCanvas roomId={roomId} />
+          {isTimelineActive && <Timeline />}
         </>
       )}
       
@@ -52,6 +59,13 @@ export default function TranscriptionBoard({ roomId }: { roomId: string }) {
           className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded shadow-md font-medium text-sm transition-colors w-full"
         >
           {showDebugger ? 'Hide Debug' : 'Show Debug'}
+        </button>
+        
+        <button 
+          onClick={toggleTimeline}
+          className="bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded shadow-md font-medium text-sm transition-colors w-full"
+        >
+          {isTimelineActive ? 'Hide Timeline' : 'Show Timeline'}
         </button>
         
         <div className="h-[1px] bg-gray-200 my-2"></div>

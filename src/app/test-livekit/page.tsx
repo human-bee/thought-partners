@@ -95,48 +95,15 @@ export default function TestWebcamPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   
-  // More aggressive environment checking
+  // Use clientEnv exclusively for environment variables
   useEffect(() => {
-    // Force refresh of environment on component mount
     function checkEnv() {
-      // Try all possible sources of the environment variable
-      let url = '';
-      
-      // 1. Try window.__ENV if it exists (set by our clientEnv utility)
-      if (typeof window !== 'undefined' && (window as any).__ENV?.NEXT_PUBLIC_LIVEKIT_URL) {
-        url = (window as any).__ENV.NEXT_PUBLIC_LIVEKIT_URL;
-        console.log('Found LiveKit URL in window.__ENV:', url);
-      } 
-      // 2. Try process.env directly (works in development)
-      else if (process.env.NEXT_PUBLIC_LIVEKIT_URL) {
-        url = process.env.NEXT_PUBLIC_LIVEKIT_URL;
-        console.log('Found LiveKit URL in process.env:', url);
-      }
-      // 3. Try clientEnv utility (our safe accessor)
-      else if (clientEnv.NEXT_PUBLIC_LIVEKIT_URL) {
-        url = clientEnv.NEXT_PUBLIC_LIVEKIT_URL;
-        console.log('Found LiveKit URL in clientEnv:', url);
-      }
-      
+      // Get LiveKit URL from clientEnv
+      let url = clientEnv.NEXT_PUBLIC_LIVEKIT_URL || '';
+
       // Hard-code the value as fallback for testing
       if (!url) {
-        console.warn('LiveKit URL not found in any source, checking hard-coded value...');
-        // For testing - remove this in production
-        if (typeof window !== 'undefined') {
-          console.log('Checking if window has access to env vars:', {
-            NEXT_PUBLIC_LIVEKIT_URL: process.env.NEXT_PUBLIC_LIVEKIT_URL
-          });
-          
-          // Log all NEXT_PUBLIC_ environment variables
-          const nextPublicVars = Object.keys(process.env)
-            .filter(key => key.startsWith('NEXT_PUBLIC_'))
-            .reduce((obj, key) => {
-              obj[key] = process.env[key];
-              return obj;
-            }, {} as Record<string, string | undefined>);
-          
-          console.log('All NEXT_PUBLIC_ variables:', nextPublicVars);
-        }
+        console.warn('LiveKit URL not found in any source');
       }
       
       setLivekitUrl(url);
@@ -150,7 +117,7 @@ export default function TestWebcamPage() {
     // Check immediately
     checkEnv();
     
-    // Also check after a short delay to allow Next.js to fully initialize
+    // Re-check after a delay if needed
     const timeout = setTimeout(checkEnv, 1000);
     return () => clearTimeout(timeout);
   }, []);

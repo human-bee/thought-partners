@@ -1,8 +1,11 @@
 import { Tldraw, createTLStore, defaultShapeUtils, createShapeId } from 'tldraw';
 import { useEffect, useState, useCallback, useMemo, useRef, memo } from 'react';
 import 'tldraw/tldraw.css';
+import { VideoLogger } from '@/utils/VideoLogger';
 import { useLocalParticipant, useRoomContext } from '@livekit/components-react';
 import { DataPacket_Kind } from 'livekit-client';
+import { Room } from 'livekit-client';
+import { Editor } from '@tldraw/editor';
 
 // Add render counter
 let renderCount = 0;
@@ -23,8 +26,8 @@ interface DataMessage {
   data: string;
 }
 
-// Extend the Room type to include LiveKit's actual properties
-interface ExtendedRoom extends Room {
+// Define custom type with LiveKit properties we need
+interface ExtendedRoom {
   dataReceived: {
     on: (callback: (data: Uint8Array) => void) => void;
     off: (callback: (data: Uint8Array) => void) => void;
@@ -48,8 +51,8 @@ interface TLTextShapeProps {
   verticalAlign?: string;
 }
 
-// Extend the Editor type to include missing methods
-interface ExtendedEditor extends Editor {
+// Define custom editor type with methods we need
+interface ExtendedEditor {
   getChanges: () => any[];
   createShapes: (shapes: any[]) => void;
 }
@@ -61,7 +64,7 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
   renderCount++;
   renderCountRef.current++;
   
-  console.time(`CollaborativeBoard render ${renderCountRef.current}`);
+  VideoLogger.debug(`CollaborativeBoard rendering, count=${renderCountRef.current}`);
   
   const [store, setStore] = useState<ReturnType<typeof createTLStore> | null>(null);
   const localParticipantData = useLocalParticipant();
@@ -81,15 +84,15 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
   
   useEffect(() => {
     if (prevStoreRef.current !== store) {
-      console.log('CollaborativeBoard: store changed');
+      VideoLogger.debug('CollaborativeBoard: store changed');
       prevStoreRef.current = store;
     }
     if (prevRoomContextRef.current !== roomContext) {
-      console.log('CollaborativeBoard: roomContext changed');
+      VideoLogger.debug('CollaborativeBoard: roomContext changed');
       prevRoomContextRef.current = roomContext;
     }
     if (prevLocalParticipantRef.current !== localParticipant) {
-      console.log('CollaborativeBoard: localParticipant changed');
+      VideoLogger.debug('CollaborativeBoard: localParticipant changed');
       prevLocalParticipantRef.current = localParticipant;
     }
   }, [store, roomContext, localParticipant]);
@@ -97,13 +100,13 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
   // Debug: Log unmounting
   useEffect(() => {
     return () => {
-      console.log(`CollaborativeBoard unmounting: render count was ${renderCountRef.current}`);
       // Stop transcription when component unmounts
+      VideoLogger.info(`Unmounting CollaborativeBoard, final render count=${renderCountRef.current}`);
       if (recognition) {
         try {
           recognition.stop();
         } catch (e) {
-          console.warn('Error stopping recognition on unmount:', e);
+          VideoLogger.warn('Error stopping recognition on unmount:', e);
         }
       }
     };
@@ -125,7 +128,7 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
       try {
         if (newStore) newStore.dispose();
       } catch (e) {
-        console.warn('Error disposing TLDraw store:', e);
+        VideoLogger.warn('Error disposing TLDraw store:', e);
       }
     };
   }, []);
@@ -144,28 +147,28 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
       try {
         // Convert the Uint8Array to string
         const jsonString = new TextDecoder().decode(dataPacket);
-        console.log('CollaborativeBoard received data:', jsonString);
+        VideoLogger.debug(`CollaborativeBoard received data: ${jsonString}`);
         
         const dataMessage = JSON.parse(jsonString);
-        console.log('CollaborativeBoard parsed data message:', dataMessage);
+        VideoLogger.debug('CollaborativeBoard parsed data message:', dataMessage);
         
         if (dataMessage.topic !== 'tldraw' && dataMessage.topic !== 'transcription') {
-          console.log('CollaborativeBoard ignoring message with topic:', dataMessage.topic);
+          VideoLogger.debug('CollaborativeBoard ignoring message with topic:', dataMessage.topic);
           return;
         }
         
         let data;
         try {
           data = JSON.parse(dataMessage.data);
-          console.log('CollaborativeBoard parsed inner data:', data);
+          VideoLogger.debug('CollaborativeBoard parsed inner data:', data);
         } catch (error) {
-          console.error('CollaborativeBoard error parsing inner data:', error);
+          VideoLogger.error('CollaborativeBoard error parsing inner data:', error);
           return;
         }
         
         // Handle tldraw updates
         if (dataMessage.topic === 'tldraw' && data.type === 'tlDrawUpdate' && store) {
-          console.log('CollaborativeBoard handling tldraw update');
+          VideoLogger.debug('CollaborativeBoard handling tldraw update');
           store.mergeRemoteChanges(() => {
             store.put(data.changes);
           });
@@ -173,7 +176,7 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
         
         // Handle transcription
         if (dataMessage.topic === 'transcription' && data.type === 'transcription' && editorRef.current) {
-          console.log('CollaborativeBoard handling transcription:', {
+          VideoLogger.debug('CollaborativeBoard handling transcription:', {
             data: data,
             editorAvailable: !!editorRef.current,
             editorRef: editorRef
@@ -187,7 +190,7 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
           });
         }
       } catch (error) {
-        console.error('Error processing data message:', error);
+        VideoLogger.error('Error processing data message:', error);
       }
     };
 
@@ -195,7 +198,7 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
     try {
       room.dataReceived.on(handleDataReceived);
     } catch (e) {
-      console.error('Error setting up data listener:', e);
+      VideoLogger.error('Error setting up data listener:', e);
     }
     
     return () => {
@@ -205,16 +208,16 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
           room.dataReceived.off(handleDataReceived);
         }
       } catch (e) {
-        console.warn('Error removing data listener:', e);
+        VideoLogger.warn('Error removing data listener:', e);
       }
     };
   }, [store, roomContext]);
 
   // Function to add transcription to the canvas
   const addTranscriptionToCanvas = useCallback((entry: TranscriptionEntry) => {
-    console.log('CollaborativeBoard: Adding transcription to canvas:', entry);
+    VideoLogger.info(`Adding transcription to canvas from ${entry.participantName}: ${entry.text}`);
     if (!editorRef.current) {
-      console.warn('Editor ref is not available in CollaborativeBoard', {
+      VideoLogger.warn('Editor ref is not available in CollaborativeBoard', {
         editorRefExists: !!editorRef,
         editorRefCurrent: !!editorRef.current
       });
@@ -222,16 +225,16 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
     }
     
     const editor = editorRef.current;
-    console.log('Editor instance is available:', editor);
+    VideoLogger.debug('Editor instance is available:', editor);
     
     try {
       // Create a new note shape (better for transcriptions than text)
       const id = createShapeId();
-      console.log('Generated shape ID:', id);
+      VideoLogger.debug('Generated shape ID:', id);
       
       // Format the transcription content
       const displayText = `${entry.participantName}: ${entry.text}`;
-      console.log('Creating note with text:', displayText);
+      VideoLogger.debug('Creating note with text:', displayText);
       
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const noteShape: any = {
@@ -251,32 +254,28 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
         },
       };
       
-      console.log('Note shape object:', noteShape);
-      console.log('Editor shape utils available:', Object.keys(editor.shapeUtils));
+      VideoLogger.debug('Note shape object:', noteShape);
+      VideoLogger.debug('Editor shape utils available:', Object.keys(editor.shapeUtils));
       
       // Check if note shape is supported
       try {
         const noteUtil = editor.getShapeUtil('note');
-        console.log('Note shape util:', noteUtil, 'Default props:', noteUtil?.getDefaultProps?.());
+        VideoLogger.debug('Note shape util:', noteUtil, 'Default props:', noteUtil?.getDefaultProps?.());
       } catch (e) {
-        console.warn('Error getting note shape util:', e);
+        VideoLogger.warn('Error getting note shape util:', e);
       }
       
       // Add the shape to the canvas
-      console.log('About to call editor.createShapes');
+      VideoLogger.debug('About to call editor.createShapes');
       editor.createShapes([noteShape]);
-      console.log('Successfully called createShapes');
+      VideoLogger.debug('Successfully called createShapes');
       
       // Verify the shape was created
       const createdShape = editor.getShape(id);
-      console.log('Shape created verification:', createdShape);
+      VideoLogger.debug('Shape created verification:', createdShape);
       
     } catch (error) {
-      console.error('Error adding transcription to canvas:', error);
-      if (error instanceof Error) {
-        console.error('Error message:', error.message);
-        console.error('Error stack:', error.stack);
-      }
+      VideoLogger.error('Error creating transcription note:', error);
     }
   }, []);
 
@@ -294,7 +293,7 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (localParticipant as any).publishData(uint8Array, DataPacket_Kind.RELIABLE);
     } catch (error) {
-      console.error('Error publishing data:', error);
+      VideoLogger.error('Error publishing data:', error);
     }
   }, [localParticipant]);
 
@@ -327,14 +326,14 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
           }
         }]);
         
-        console.log('Added fully visible PRESENT watermark to canvas as a tldraw text shape');
+        VideoLogger.debug('Added fully visible PRESENT watermark to canvas as a tldraw text shape');
         
         // Make sure it's on top by bringing it to front
         editor.bringToFront([watermarkId]);
       }, 500); // Half-second delay to ensure it's on top
 
     } catch (error) {
-      console.error('Error adding watermark:', error);
+      VideoLogger.error('Error adding watermark:', error);
     }
     
     // Set up editor change listener
@@ -360,7 +359,7 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
           }
         }
       } catch (error) {
-        console.error('Error publishing drawing updates:', error);
+        VideoLogger.error('Error publishing drawing updates:', error);
       }
     });
   }, [localParticipant, roomContext, publishData]);
@@ -372,7 +371,7 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
     recognitionInitializedRef.current = true;
     
     if (!window.SpeechRecognition && !window.webkitSpeechRecognition) {
-      console.error('Speech recognition not supported in this browser');
+      VideoLogger.error('Speech recognition not supported in this browser');
       return;
     }
 
@@ -384,19 +383,19 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
     recognitionInstance.lang = 'en-US';
     
     recognitionInstance.onstart = () => {
-      console.log('Speech recognition started');
+      VideoLogger.debug('Speech recognition started');
       setIsTranscribing(true);
     };
     
     recognitionInstance.onerror = (event) => {
-      console.error('Speech recognition error', event.error);
+      VideoLogger.error('Speech recognition error', event.error);
       if (event.error === 'not-allowed') {
         alert('Microphone access is required for transcription');
       }
     };
     
     recognitionInstance.onend = () => {
-      console.log('Speech recognition ended');
+      VideoLogger.debug('Speech recognition ended');
       setIsTranscribing(false);
       // Don't auto-restart to avoid cascading issues
     };
@@ -442,7 +441,7 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
           recognitionInstance.stop();
         }
       } catch (e) {
-        console.warn('Error stopping speech recognition on cleanup:', e);
+        VideoLogger.warn('Error stopping speech recognition on cleanup:', e);
       }
       recognitionInitializedRef.current = false;
     };
@@ -455,14 +454,14 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
         recognition.stop();
         setIsTranscribing(false);
       } catch (e) {
-        console.error('Error stopping recognition:', e);
+        VideoLogger.error('Error stopping recognition:', e);
       }
     } else if (recognition) {
       try {
         recognition.start();
         setIsTranscribing(true);
       } catch (e) {
-        console.error('Error starting recognition:', e);
+        VideoLogger.error('Error starting recognition:', e);
       }
     }
   }, [isTranscribing, recognition]);

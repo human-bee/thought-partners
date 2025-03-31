@@ -21,10 +21,8 @@ interface WebKitWindow extends Window {
   webkitAudioContext: typeof AudioContext;
 }
 
-export default function WhiteboardRoom({ params }: { params: Promise<{ roomId: string }> }) {
-  // Use React.use to unwrap the params Promise
-  const resolvedParams = React.use(params);
-  const roomId = resolvedParams.roomId;
+export default function WhiteboardRoom({ params }: { params: { roomId: string } }) {
+  const { roomId } = params;
   const [audioContext, setAudioContext] = useState<AudioContext | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const roomRef = useRef<Room | null>(null);
