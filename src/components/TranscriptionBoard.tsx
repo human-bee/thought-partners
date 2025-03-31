@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from 'react';
 import { TranscriptionCanvas } from './transcription/TranscriptionCanvas';
 import { TranscriptionControls } from './transcription/TranscriptionControls';

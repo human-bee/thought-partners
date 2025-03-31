@@ -1,3 +1,5 @@
+"use client";
+
 import React, { createContext, useContext, useState, ReactNode, useRef, useCallback } from 'react';
 
 // Define the structure of a timeline note
