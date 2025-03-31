@@ -1,53 +1,37 @@
-import { useEffect, useRef, useCallback, useState } from 'react';
+"use client";
+
+import { useEffect, useRef, useCallback } from 'react';
 import { Editor, createShapeId, toRichText } from '@tldraw/editor';
 
-// Define an interface for the extended HTMLElement with the editor property
-interface TLDrawElementWithEditor extends HTMLElement {
-  __editorForTranscription?: Editor;
-  __editor?: Editor;
+// Define flexible shape props that can have either text or richText
+interface NoteShapeProps {
+  text?: string;
+  richText?: any;
+  color: string;
+  size: string;
+  font: string;
+  align: string;
+  growY: boolean;
+  w: number;
 }
 
 export function TestControls() {
   const editorRef = useRef<Editor | null>(null);
-  const [isClient, setIsClient] = useState(false);
-
-  // Set isClient to true when component mounts on client
-  useEffect(() => {
-    setIsClient(true);
-  }, []);
 
   // Get editor from the closest Tldraw component
   useEffect(() => {
-    if (!isClient) return; // Skip during SSR
-    
     // Look for TLDraw editor instance in the document
     const findEditor = () => {
-      if (typeof document === 'undefined') return; // Safety check for SSR
-      
-      // Check global window object first (might be set by TranscriptionCanvas)
       if (window.__editorInstance) {
         editorRef.current = window.__editorInstance;
-        console.log('TestControls: Found editor via window.__editorInstance');
+        console.log("Found editor in window.__editorInstance");
         return;
       }
       
       const tldrawElement = document.querySelector('[data-testid="tldraw-editor"]');
-      if (tldrawElement) {
-        const element = tldrawElement as TLDrawElementWithEditor;
-        // Try to get editor from our custom property first, then fall back to the default
-        if (element.__editorForTranscription) {
-          editorRef.current = element.__editorForTranscription;
-          console.log('TestControls: Found editor via __editorForTranscription property');
-        } else if (element.__editor) {
-          editorRef.current = element.__editor;
-          console.log('TestControls: Found editor via __editor property');
-        }
-        
-        if (editorRef.current) {
-          console.log('TestControls: Editor is available for use');
-          // Store globally for other components to use
-          window.__editorInstance = editorRef.current;
-        }
+      if (tldrawElement && (tldrawElement as any).__editor) {
+        editorRef.current = (tldrawElement as any).__editor;
+        console.log("Found editor in tldraw element");
       }
     };
 
@@ -55,67 +39,80 @@ export function TestControls() {
     findEditor();
     const timer = setTimeout(findEditor, 1000);
     
-    // Try at increasing intervals
-    const secondTimer = setTimeout(findEditor, 3000);
-    const thirdTimer = setTimeout(() => {
-      findEditor();
-      if (!editorRef.current) {
-        console.error('TestControls: Editor still not available after longer timeout. Will continue trying...');
-        
-        // Keep trying at longer intervals
-        const intervalId = setInterval(() => {
-          findEditor();
-          if (editorRef.current) {
-            console.log('TestControls: Editor finally found!');
-            clearInterval(intervalId);
-          }
-        }, 2000);
-        
-        // Clean up interval after a reasonable time
-        setTimeout(() => clearInterval(intervalId), 30000);
-      }
-    }, 5000);
-    
-    return () => {
-      clearTimeout(timer);
-      clearTimeout(secondTimer);
-      clearTimeout(thirdTimer);
-    };
-  }, [isClient]);
+    return () => clearTimeout(timer);
+  }, []);
 
   const addTranscriptionToCanvas = useCallback((text: string) => {
-    console.log('Adding transcription to canvas:', text);
+    console.log('TEST: Adding transcription to canvas:', text);
     if (!editorRef.current) {
-      console.warn('Editor ref is not available');
-      return;
+      console.warn('TEST: Editor ref is not available');
+      
+      // Try to get editor from window
+      if (window.__editorInstance) {
+        editorRef.current = window.__editorInstance;
+        console.log("TEST: Retrieved editor from window.__editorInstance");
+      } else {
+        console.error("TEST: Could not find editor reference");
+        return;
+      }
     }
 
     const editor = editorRef.current;
     const id = createShapeId();
 
     try {
-      // Create a note shape instead of text (better for transcriptions)
+      // Get viewport to center the shape
+      const viewport = editor.getViewportPageBounds();
+      const x = viewport.center.x + (Math.random() * 300 - 150);
+      const y = viewport.center.y + (Math.random() * 200 - 100);
+      
+      // Create a note shape 
+      const props: NoteShapeProps = {
+        color: 'yellow',
+        size: 'l',
+        font: 'draw',
+        align: 'middle',
+        growY: true,
+        w: 300,
+      };
+      
+      // Check which prop to use for text content
+      const noteUtil = editor.getShapeUtil('note');
+      if (noteUtil) {
+        const defaultProps = noteUtil.getDefaultProps?.() || {};
+        if ('richText' in defaultProps) {
+          props.richText = toRichText(`TEST: ${text}`);
+        } else {
+          props.text = `TEST: ${text}`;
+        }
+      } else {
+        // Fallback to text property
+        props.text = `TEST: ${text}`;
+      }
+      
       const shape = {
         id,
         type: 'note',
-        x: Math.random() * 600,
-        y: Math.random() * 400,
-        props: {
-          richText: toRichText(text),
-          color: 'yellow',
-          size: 'l',
-          font: 'draw',
-          align: 'middle',
-          verticalAlign: 'middle',
-          growY: true,
-        }
+        x,
+        y,
+        props
       };
 
-      console.log('Creating shape:', shape);
-      editor.createShapes([shape]);
-      console.log('Shape created successfully');
+      console.log('TEST: Creating shape:', shape);
+      
+      // Use try-catch with batch for error handling
+      try {
+        editor.batch(() => {
+          editor.createShapes([shape]);
+        });
+        console.log('TEST: Shape created successfully');
+      } catch (batchError) {
+        console.error('TEST: Error in batch shape creation:', batchError);
+        // Try direct method as fallback
+        editor.createShapes([shape]);
+      }
     } catch (error) {
-      console.error('Error creating shape:', error);
+      console.error('TEST: Error creating shape:', error);
     }
   }, []);
 
@@ -130,19 +127,31 @@ export function TestControls() {
     console.log('Creating text box with background...');
     if (!editorRef.current) {
       console.warn('Editor ref is not available for text box creation');
-      return;
+      
+      // Try to get editor from window
+      if (window.__editorInstance) {
+        editorRef.current = window.__editorInstance;
+      } else {
+        console.error("Could not find editor reference");
+        return;
+      }
     }
 
     const editor = editorRef.current;
     
     try {
+      // Get viewport to center the shape
+      const viewport = editor.getViewportPageBounds();
+      const centerX = viewport.center.x;
+      const centerY = viewport.center.y;
+      
       // Create a background rectangle with simplified properties
       const bgId = createShapeId();
       const bgShape = {
         id: bgId,
         type: 'geo',
-        x: 100 + Math.random() * 200,
-        y: 100 + Math.random() * 200,
+        x: centerX - 160,
+        y: centerY - 100,
         props: {
           geo: 'rectangle',
           w: 320,
@@ -154,27 +163,51 @@ export function TestControls() {
         }
       };
       
-      // Create text on top with updated properties for TLDraw v3
+      // Create text on top with updated properties for TLDraw
       const textId = createShapeId();
+      const textContent = 'This is a text box with background at ' + new Date().toLocaleTimeString();
+      
+      const textProps: any = {
+        color: 'black',
+        size: 'l',
+        font: 'draw',
+        align: 'start',
+        w: 300,
+      };
+      
+      // Check which property to use for text
+      const textUtil = editor.getShapeUtil('text');
+      if (textUtil) {
+        const defaultTextProps = textUtil.getDefaultProps?.() || {};
+        if ('richText' in defaultTextProps) {
+          textProps.richText = toRichText(textContent);
+        } else {
+          textProps.text = textContent;
+        }
+      } else {
+        textProps.text = textContent;
+      }
+      
       const textShape = {
         id: textId,
         type: 'text',
         x: (bgShape.x as number) + 10,
         y: (bgShape.y as number) + 10,
-        props: {
-          richText: toRichText('This is a text box with background at ' + new Date().toLocaleTimeString()),
-          color: 'black',
-          size: 'l',
-          font: 'draw',
-          textAlign: 'start',
-          autoSize: true,
-          w: 300,
-        }
+        props: textProps
       };
       
       // Add both shapes to the canvas
-      editor.createShapes([bgShape, textShape]);
-      console.log('Text box with background created successfully');
+      try {
+        editor.batch(() => {
+          editor.createShapes([bgShape, textShape]);
+        });
+        console.log('Text box with background created successfully');
+      } catch (batchError) {
+        console.error('Error in batch shape creation:', batchError);
+        // Try direct method as fallback
+        editor.createShapes([bgShape]);
+        editor.createShapes([textShape]);
+      }
     } catch (error) {
       console.error('Error creating text box with background:', error);
     }
@@ -198,7 +231,7 @@ export function TestControls() {
   );
 }
 
-// Add to global Window interface
+// Add global window type augmentation
 declare global {
   interface Window {
     __editorInstance?: Editor;
