@@ -1,3 +1,5 @@
+"use client";
+
 import { useSpeechRecognition } from './useSpeechRecognition';
 
 export function TranscriptionControls() {

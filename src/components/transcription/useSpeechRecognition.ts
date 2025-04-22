@@ -1,6 +1,8 @@
+"use client";
+
 import { useState, useEffect, useCallback } from 'react';
 import { useRoomContext } from '@livekit/components-react';
-import { DataPacket_Kind, DataPublishOptions } from 'livekit-client';
+import { DataPacket_Kind, DataPublishOptions, ConnectionState } from 'livekit-client';
 import { Editor } from '@tldraw/editor';
 
 // Add global window type augmentation
@@ -77,6 +79,13 @@ export function useSpeechRecognition(): SpeechRecognitionHook {
           // Send the final transcript
           if (room?.localParticipant && finalTranscript !== '') {
             try {
+              // Check room connection state before attempting to publish
+              if (room.state !== ConnectionState.Connected) {
+                console.warn('Cannot publish transcription data: room is not connected. Current state:',
+                  ConnectionState[room.state] || room.state);
+                return;
+              }
+              
               // Create the inner data object
               const transcriptionData = {
                 type: 'transcription',

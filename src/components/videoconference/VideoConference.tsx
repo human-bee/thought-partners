@@ -1,3 +1,5 @@
+"use client";
+
 import {
   RoomAudioRenderer,
   VideoConference as LiveKitVideoConference,

@@ -1,8 +1,9 @@
-import { Tldraw, createTLStore, defaultShapeUtils, createShapeId } from 'tldraw';
+import { Tldraw, createTLStore, defaultShapeUtils, createShapeId, toRichText } from 'tldraw';
 import { useEffect, useState, useCallback, useMemo, useRef, memo } from 'react';
 import 'tldraw/tldraw.css';
 import { useLocalParticipant, useRoomContext } from '@livekit/components-react';
-import { DataPacket_Kind } from 'livekit-client';
+import { DataPacket_Kind, Room, ConnectionState } from 'livekit-client';
+import { Editor } from '@tldraw/editor';
 
 // Add render counter
 let renderCount = 0;
@@ -23,18 +24,9 @@ interface DataMessage {
   data: string;
 }
 
-// Extend the Room type to include LiveKit's actual properties
-interface ExtendedRoom extends Room {
-  dataReceived: {
-    on: (callback: (data: Uint8Array) => void) => void;
-    off: (callback: (data: Uint8Array) => void) => void;
-  };
-  localParticipant: {
-    identity: string;
-    name: string;
-    publishData: (data: Uint8Array, kind: DataPacket_Kind) => void;
-  };
-}
+// We'll use type assertion instead of extending the interfaces
+// to avoid type compatibility issues with the actual implementations
+// The Room type from livekit-client already has the properties we need
 
 // Define TLTextShapeProps to match actual implementation
 interface TLTextShapeProps {
@@ -46,12 +38,6 @@ interface TLTextShapeProps {
   align: string;
   autoSize: boolean;
   verticalAlign?: string;
-}
-
-// Extend the Editor type to include missing methods
-interface ExtendedEditor extends Editor {
-  getChanges: () => any[];
-  createShapes: (shapes: any[]) => void;
 }
 
 // Wrap with memo to prevent unnecessary rerenders
@@ -68,6 +54,7 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
   const roomContext = useRoomContext();
   const localParticipant = localParticipantData?.localParticipant;
   const storeInitializedRef = useRef(false);
+  // Use any type for editor to avoid complex type issues
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const editorRef = useRef<any>(null);
   const [isTranscribing, setIsTranscribing] = useState(false);
@@ -225,7 +212,73 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
     console.log('Editor instance is available:', editor);
     
     try {
-      // Create a new note shape (better for transcriptions than text)
+      // Track notes per participant to append instead of creating new ones
+      const participantNoteRefs = editorRef.current._participantNoteRefs = editorRef.current._participantNoteRefs || new Map();
+      const existingNoteId = participantNoteRefs.get(entry.participantIdentity);
+      
+      // If we have an existing note for this participant, update it instead of creating a new one
+      if (existingNoteId) {
+        const existingShape = editor.getShape(existingNoteId);
+        
+        if (existingShape && existingShape.type === 'note') {
+          console.log('Found existing note for participant:', entry.participantIdentity);
+          
+          // Get the existing content
+          const existingProps = existingShape.props || {};
+          
+          // Handle different property formats (content or richText)
+          let currentText = '';
+          if (existingProps.content) {
+            currentText = typeof existingProps.content === 'string' 
+              ? existingProps.content 
+              : (existingProps.content.text || '');
+          } else if (existingProps.richText) {
+            // Extract text from rich text format (simplified)
+            try {
+              currentText = existingProps.richText.text || '';
+            } catch (e) {
+              console.warn('Error extracting text from rich text:', e);
+            }
+          }
+          
+          // Format the transcription content
+          const displayText = `${entry.participantName}: ${entry.text}`;
+          
+          // Append new text to existing content
+          const updatedText = currentText ? `${currentText}\n${displayText}` : displayText;
+          
+          // Update the shape with appended text
+          console.log('Updating note with appended text:', updatedText);
+          
+          try {
+            editor.updateShapes([{
+              id: existingNoteId,
+              type: 'note',
+              props: {
+                ...existingProps,
+                // Update either content or richText based on what the shape uses
+                ...(existingProps.content !== undefined ? { content: updatedText } : {}),
+                ...(existingProps.richText !== undefined ? { 
+                  richText: editor.textUtils
+                    ? editor.textUtils.toRichText(updatedText)
+                    : updatedText 
+                } : {})
+              }
+            }]);
+            
+            console.log('Note updated successfully');
+            return;
+          } catch (updateError) {
+            console.error('Error updating existing note:', updateError);
+            // Fall through to create a new note if update fails
+          }
+        } else {
+          console.warn('Referenced note no longer exists, creating new note');
+          participantNoteRefs.delete(entry.participantIdentity);
+        }
+      }
+      
+      // Create a new note if no existing note or update failed
       const id = createShapeId();
       console.log('Generated shape ID:', id);
       
@@ -267,12 +320,12 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
       editor.createShapes([noteShape]);
       console.log('Successfully called createShapes');
       
-      // Verify the shape was created
-      const createdShape = editor.getShape(id);
-      console.log('Shape created verification:', createdShape);
+      // Store reference to this note for the participant
+      participantNoteRefs.set(entry.participantIdentity, id);
+      console.log('Stored note ID for participant:', entry.participantIdentity);
       
     } catch (error) {
-      console.error('Error adding transcription to canvas:', error);
+      console.error('Error creating/updating note shape:', error);
       if (error instanceof Error) {
         console.error('Error message:', error.message);
         console.error('Error stack:', error.stack);
@@ -282,9 +335,17 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
 
   // Memoize publishData function to reduce dependency changes
   const publishData = useCallback((data: string, topic: string) => {
-    if (!localParticipant) return;
+    if (!localParticipant || !roomContext) return;
     
     try {
+      // Check connection state before publishing
+      const room = roomContext as Room;
+      if (room.state !== ConnectionState.Connected) {
+        console.warn('Cannot publish data: room is not connected. Current state:', 
+          room.state);
+        return;
+      }
+      
       // Convert string to Uint8Array for LiveKit's publishData
       const jsonString = JSON.stringify({ topic, data });
       const encoder = new TextEncoder();
@@ -296,7 +357,7 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
     } catch (error) {
       console.error('Error publishing data:', error);
     }
-  }, [localParticipant]);
+  }, [localParticipant, roomContext]);
 
   // Store editor reference and handle changes
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -317,12 +378,11 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
           x: viewport.center.x - 300, // Better horizontal centering for large text
           y: viewport.center.y - 80,  // Better vertical centering for large text
           props: {
-            text: 'PRESENT',
+            richText: toRichText('PRESENT'),
             color: 'black',
             size: 'xl',
             font: 'draw',
-            align: 'middle',
-            opacity: 1.0, // Full opacity to ensure visibility
+            textAlign: 'middle',
             scale: 5,     // Large size
           }
         }]);
