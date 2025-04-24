@@ -4,6 +4,8 @@ import 'tldraw/tldraw.css';
 import { useLocalParticipant, useRoomContext } from '@livekit/components-react';
 import { DataPacket_Kind, Room, ConnectionState } from 'livekit-client';
 import { Editor } from '@tldraw/editor';
+import { WhiteboardController } from '@/controllers/WhiteboardController';
+import { useTranscriptStore } from '@/contexts/TranscriptStore';
 
 // Add render counter
 let renderCount = 0;
@@ -60,6 +62,12 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
   const recognitionInitializedRef = useRef(false);
+
+  // Central change-based controller
+  const controllerRef = useRef<WhiteboardController | null>(null);
+
+  // Transcript store context
+  const { addLine: addTranscriptLine } = useTranscriptStore();
 
   // Debug: Track state changes
   const prevStoreRef = useRef(store);
@@ -209,9 +217,22 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
     }
     
     const editor = editorRef.current;
+    const controller = controllerRef.current;
+    if (!controller) {
+      console.warn('WhiteboardController not ready');
+      return;
+    }
     console.log('Editor instance is available:', editor);
     
     try {
+      // First, push to transcript store
+      addTranscriptLine({
+        authorId: entry.participantIdentity,
+        authorName: entry.participantName,
+        text: entry.text,
+        timestamp: entry.timestamp,
+      });
+
       // Track notes per participant to append instead of creating new ones
       const participantNoteRefs = editorRef.current._participantNoteRefs = editorRef.current._participantNoteRefs || new Map();
       const existingNoteId = participantNoteRefs.get(entry.participantIdentity);
@@ -251,20 +272,25 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
           console.log('Updating note with appended text:', updatedText);
           
           try {
-            editor.updateShapes([{
-              id: existingNoteId,
-              type: 'note',
-              props: {
-                ...existingProps,
-                // Update either content or richText based on what the shape uses
-                ...(existingProps.content !== undefined ? { content: updatedText } : {}),
-                ...(existingProps.richText !== undefined ? { 
-                  richText: editor.textUtils
-                    ? editor.textUtils.toRichText(updatedText)
-                    : updatedText 
-                } : {})
-              }
-            }]);
+            controller.applyChange({
+              type: 'updateShape',
+              description: 'Update transcription note',
+              shape: {
+                id: existingNoteId,
+                type: 'note',
+                props: {
+                  ...existingProps,
+                  ...(existingProps.content !== undefined ? { content: updatedText } : {}),
+                  ...(existingProps.richText !== undefined
+                    ? {
+                        richText: editor.textUtils
+                          ? editor.textUtils.toRichText(updatedText)
+                          : updatedText,
+                      }
+                    : {}),
+                },
+              },
+            });
             
             console.log('Note updated successfully');
             return;
@@ -315,10 +341,14 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
         console.warn('Error getting note shape util:', e);
       }
       
-      // Add the shape to the canvas
-      console.log('About to call editor.createShapes');
-      editor.createShapes([noteShape]);
-      console.log('Successfully called createShapes');
+      // Add the shape via controller
+      console.log('About to apply createShape via controller');
+      controller.applyChange({
+        type: 'createShape',
+        description: 'Create transcription note',
+        shape: noteShape,
+      });
+      console.log('Successfully applied createShape');
       
       // Store reference to this note for the participant
       participantNoteRefs.set(entry.participantIdentity, id);
@@ -331,7 +361,7 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
         console.error('Error stack:', error.stack);
       }
     }
-  }, []);
+  }, [addTranscriptLine]);
 
   // Memoize publishData function to reduce dependency changes
   const publishData = useCallback((data: string, topic: string) => {
@@ -363,6 +393,9 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleMount = useCallback((editor: any) => {
     editorRef.current = editor;
+    
+    // Instantiate whiteboard controller
+    controllerRef.current = new WhiteboardController(editor);
     
     // Add a watermark "PRESENT" with very low opacity
     try {

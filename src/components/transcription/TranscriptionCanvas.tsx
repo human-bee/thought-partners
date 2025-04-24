@@ -5,6 +5,7 @@ import { useRoomContext } from '@livekit/components-react';
 import { Editor, createShapeId, toRichText } from '@tldraw/editor';
 import { Tldraw } from '@tldraw/tldraw';
 import { DataPublishOptions, ConnectionState } from 'livekit-client';
+import { useTranscriptStore } from '@/contexts/TranscriptStore';
 
 // Define an interface for the extended HTMLElement with the editor property
 interface TLDrawElementWithEditor extends HTMLElement {
@@ -22,6 +23,17 @@ interface TranscriptionCanvasProps {
   roomId: string;
 }
 
+// This file now only hosts a TLDraw editor for debugging / overlay purposes.
+// CollaborativeBoard is the single source of truth for transcription handling.
+
+// Toggle this to true if we want TranscriptionCanvas itself to create sticky notes (legacy behaviour).
+const SHOULD_CREATE_NOTE_SHAPES = false;
+
+// Toggle this to true if we want TranscriptionCanvas to handle incoming transcription
+// events and push to the TranscriptStore. In normal operation this should remain false
+// to avoid duplicate lines (CollaborativeBoard already handles it).
+const SHOULD_PROCESS_TRANSCRIPTION = false;
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function TranscriptionCanvas({ roomId }: TranscriptionCanvasProps) {
   const room = useRoomContext();
@@ -29,8 +41,27 @@ export function TranscriptionCanvas({ roomId }: TranscriptionCanvasProps) {
   // Map to track each participant's current note ID
   const participantNoteRefs = useRef(new Map<string, string>());
 
+  // Transcript store
+  const { addLine: addTranscriptLine } = useTranscriptStore();
+
   const addTranscriptionToCanvas = useCallback((text: string, participantId?: string) => {
     console.log('Adding transcription to canvas:', text);
+
+    // Push to transcript store only if this canvas is the designated handler
+    if (SHOULD_PROCESS_TRANSCRIPTION) {
+      addTranscriptLine({
+        authorId: participantId ?? 'unknown',
+        authorName: participantId ?? 'Unknown',
+        text,
+        timestamp: new Date(),
+      });
+    }
+
+    // If this instance is not responsible for creating sticky notes, bail out here.
+    if (!SHOULD_CREATE_NOTE_SHAPES) {
+      return;
+    }
+
     if (!editorRef.current) {
       console.warn('Editor ref is not available', { 
         editorRefCurrent: editorRef.current,
@@ -239,7 +270,7 @@ export function TranscriptionCanvas({ roomId }: TranscriptionCanvasProps) {
         console.error('Error stack:', error.stack);
       }
     }
-  }, [room]);
+  }, [room, addTranscriptLine]);
 
   useEffect(() => {
     // Debug log to check component mounting
@@ -297,7 +328,13 @@ export function TranscriptionCanvas({ roomId }: TranscriptionCanvasProps) {
           return;
         }
 
-        // Check if it's a direct transcription message
+        // ---- Transcription handling disabled to avoid duplication (handled by CollaborativeBoard) ----
+        if (!SHOULD_PROCESS_TRANSCRIPTION) {
+          // ignore transcription messages entirely
+          return;
+        }
+
+        // Legacy path (only active if SHOULD_PROCESS_TRANSCRIPTION)
         if (message.type === 'transcription' && message.text) {
           console.log('Direct transcription message received:', message);
           addTranscriptionToCanvas(message.text, message.participantId || message.participantIdentity);
@@ -338,8 +375,8 @@ export function TranscriptionCanvas({ roomId }: TranscriptionCanvasProps) {
             console.error('Error creating shape from received data:', shapeError);
           }
         }
-        // Handle wrapped format with topic field (used by CollaborativeBoard)
-        else if (message.topic === 'transcription' && message.data) {
+        // Handle wrapped format with topic field (legacy path) only if enabled
+        else if (SHOULD_PROCESS_TRANSCRIPTION && message.topic === 'transcription' && message.data) {
           console.log('Wrapped transcription message received:', message);
           try {
             const innerData = JSON.parse(message.data);
@@ -360,7 +397,7 @@ export function TranscriptionCanvas({ roomId }: TranscriptionCanvasProps) {
             console.error('Error parsing inner data:', parseError);
           }
         } else {
-          console.log('Message does not match expected transcription formats:', message);
+          console.log('Message does not match expected transcription formats or is ignored:', message);
         }
       } catch (error) {
         console.error('Error handling data:', error);
