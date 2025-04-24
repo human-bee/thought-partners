@@ -1,0 +1,85 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Cursor Chat Rules & Best Practices
+
+(Embed this doc in Project → "Rules" so the agent sees it every turn)
+
+---
+
+## 1  Core Philosophy
+- Keep the prompt lean. Only send the code and text that truly matters for the current request.
+- Isolate tasks. Separate unrelated work into new chats or tabs.
+
+---
+
+## 2  Context‑Window Management
+
+| Action         | When to use                                                        | Effect                                                      |
+|---------------|--------------------------------------------------------------------|-------------------------------------------------------------|
+| /reset context (or broom icon) | Pivoting to a new sub‑task in the same chat and no longer need earlier attached files | Drops all file/doc context. Keeps chat history & recent messages |
+| New Chat (Cmd + N) | Starting a completely different task, or conversation exceeds summarisation limit | Wipes both context and message history                      |
+| Large‑Context Mode | Need >32 k tokens intact (specs, long transcripts)             | 2× cost, delays summarisation                               |
+
+**Rule for Agent:** If a reply triggers the yellow "⚠︎ context too long" banner, first suggest /reset context; if still near the limit, suggest a new chat.
+
+---
+
+## 3  Understanding Auto‑Summarisation
+1. Cursor counts tokens on every send.
+2. If ≥90 % of window → oldest messages summarised into 3‑5 bullets by a small model.
+3. Bulky attached files are evicted before chat text.
+4. Recent conversation (< ~10 turns) always remains verbatim.
+
+**Agent Best Practice:** Avoid relying on details buried deep in the thread; restate critical info if it will be needed later.
+
+---
+
+## 4  File & Snippet Guidelines
+- Attach only the smallest snippet or file section required.
+- Remove attachments when done (/reset context).
+- Prefer @SymbolName or Search codebase results over pasting entire files.
+
+---
+
+## 5  Workflow Patterns
+
+**Brainstorm → Action**
+1. Brainstorm with full context.
+2. /reset context.
+3. Ask → "Turn the brainstorm above into TODO.md."
+
+**Parallel Threads**
+- Keep refactor, doc‑writing, and debugging in separate chats to avoid cross‑pollution.
+
+---
+
+## 6  Cost & Performance Tips
+- Watch the price badge; ⚠︎ means large‑context pricing is active.
+- Use /reset context to drop MB‑heavy file blobs and return to normal cost.
+
+---
+
+## 7  Quick Reference Commands
+
+/reset context     # Clear file/doc context in current chat
+Cmd + N            # New chat tab
+Cmd + K → Search   # Quick open files or symbols
+Cmd + .            # Stop generation
+
+---
+
+## 8  Pinning Critical Details
+
+If a value (API key, hex string, signature) must stay exact, paste it in a fresh message right before the step that uses it. Cursor treats newest content as sacred and avoids summarising it.
+
+---
+
+## 9  Agent Prompts Cheat‑Sheet
+- Suggest reset when heavy context is no longer relevant.
+- Suggest large‑context when user explicitly needs huge documents intact.
+- Suggest new chat when summarisation is about to hide important reasoning.
+
+(End of rules)
