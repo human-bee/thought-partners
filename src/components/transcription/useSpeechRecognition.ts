@@ -135,7 +135,7 @@ export function useSpeechRecognition(): SpeechRecognitionHook {
               } catch (e) {
                 console.warn('Failed to add local transcript line:', e);
               }
-
+              
               // Direct test to verify editor is working
               if (window.__editorInstance) {
                 console.log('Test: directly creating note via window.__editorInstance');

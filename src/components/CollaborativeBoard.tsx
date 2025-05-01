@@ -280,14 +280,9 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
                 type: 'note',
                 props: {
                   ...existingProps,
-                  ...(existingProps.content !== undefined ? { content: updatedText } : {}),
-                  ...(existingProps.richText !== undefined
-                    ? {
-                        richText: editor.textUtils
-                          ? editor.textUtils.toRichText(updatedText)
-                          : updatedText,
-                      }
-                    : {}),
+                  richText: editor.textUtils
+                    ? editor.textUtils.toRichText(updatedText)
+                    : updatedText,
                 },
               },
             });
@@ -316,13 +311,13 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
       const noteShape: any = {
         id,
         type: 'note',
-        x: 50 + Math.random() * 400, // Random position
+        x: 50 + Math.random() * 400,
         y: 50 + Math.random() * 400,
         props: {
-          content: displayText,
+          richText: toRichText(displayText),
           color: 'yellow',
           size: 'm',
-          width: 300,
+          w: 300,
           font: 'draw',
           align: 'start',
           verticalAlign: 'middle',
@@ -396,6 +391,11 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
     
     // Instantiate whiteboard controller
     controllerRef.current = new WhiteboardController(editor);
+    
+    // Expose controller globally for agents
+    if (typeof window !== 'undefined') {
+      (window as any).__whiteboardController = controllerRef.current;
+    }
     
     // Add a watermark "PRESENT" with very low opacity
     try {

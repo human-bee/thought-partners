@@ -197,51 +197,51 @@ export default function ClientOnlyWhiteboardRoom({ roomId }: { roomId: string })
             {tokenString && (
               <TranscriptionProvider>
                 <TranscriptStoreProvider>
-                  <LiveKitRoom
-                    token={tokenString}
-                    serverUrl={safeServerUrl}
-                    onError={handleLiveKitError}
-                    onConnected={() => {
-                      const livekit = (window as unknown as { livekit?: { room?: Room } }).livekit;
-                      if (livekit?.room) {
-                        roomRef.current = livekit.room;
-                        handleRoomCreate(livekit.room);
-                      }
-                    }}
-                    onDisconnected={() => {
-                      if (roomRef.current) {
-                        roomRef.current = null;
-                      }
-                    }}
-                    options={{
-                      adaptiveStream: true,
-                      dynacast: true,
-                      stopLocalTrackOnUnpublish: true,
-                    }}
-                    data-token={tokenString}
-                    connectOptions={{
-                      autoSubscribe: true,
-                      rtcConfig: {
-                        iceTransportPolicy: 'all',
-                        iceServers: [
-                          { urls: 'stun:stun.l.google.com:19302' },
-                          { urls: 'stun:stun1.l.google.com:19302' },
-                          { urls: 'stun:stun2.l.google.com:19302' },
-                          { urls: 'stun:stun3.l.google.com:19302' },
-                          { urls: 'stun:stun4.l.google.com:19302' },
-                        ],
-                      },
-                      peerConnectionTimeout: 60000,
-                    }}
-                  >
-                    <LiveKitInitializer />
-                    <div className="flex-1 relative" style={{ backgroundColor: "#ffffff", height: "100%", width: "100%" }}>
-                      <div className="absolute inset-0 z-0">
-                        <CollaborativeBoard roomId={roomId} />
-                      </div>
-                      <TranscriptionBoardWrapper roomId={roomId} />
+                <LiveKitRoom
+                  token={tokenString}
+                  serverUrl={safeServerUrl}
+                  onError={handleLiveKitError}
+                  onConnected={() => {
+                    const livekit = (window as unknown as { livekit?: { room?: Room } }).livekit;
+                    if (livekit?.room) {
+                      roomRef.current = livekit.room;
+                      handleRoomCreate(livekit.room);
+                    }
+                  }}
+                  onDisconnected={() => {
+                    if (roomRef.current) {
+                      roomRef.current = null;
+                    }
+                  }}
+                  options={{
+                    adaptiveStream: true,
+                    dynacast: true,
+                    stopLocalTrackOnUnpublish: true,
+                  }}
+                  data-token={tokenString}
+                  connectOptions={{
+                    autoSubscribe: true,
+                    rtcConfig: {
+                      iceTransportPolicy: 'all',
+                      iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' },
+                        { urls: 'stun:stun2.l.google.com:19302' },
+                        { urls: 'stun:stun3.l.google.com:19302' },
+                        { urls: 'stun:stun4.l.google.com:19302' },
+                      ],
+                    },
+                    peerConnectionTimeout: 60000,
+                  }}
+                >
+                  <LiveKitInitializer />
+                  <div className="flex-1 relative" style={{ backgroundColor: "#ffffff", height: "100%", width: "100%" }}>
+                    <div className="absolute inset-0 z-0">
+                      <CollaborativeBoard roomId={roomId} />
                     </div>
-                  </LiveKitRoom>
+                    <TranscriptionBoardWrapper roomId={roomId} />
+                  </div>
+                </LiveKitRoom>
                 </TranscriptStoreProvider>
               </TranscriptionProvider>
             )}
