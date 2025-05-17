@@ -25,7 +25,6 @@ export async function POST(req: NextRequest) {
       title: 'Never Gonna Give You Up (Fallback)'
     })
   } catch (err) {
-    console.error('[youtube-search] error', err)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
@@ -88,7 +87,6 @@ async function fallbackWithOpenAI(query: string) {
       query = `${query} youtube video` // broaden context
     }
   } catch (err) {
-    console.error('[youtube-search] OpenAI fallback error', err)
   }
   return null
 } 

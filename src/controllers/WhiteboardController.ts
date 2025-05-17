@@ -46,7 +46,6 @@ export class WhiteboardController {
         // Exhaustive check to help with future additions.
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const _exhaustiveCheck: never = change
-        console.warn('Unhandled change type', change)
     }
   }
 

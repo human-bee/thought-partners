@@ -29,7 +29,7 @@ export const useDeviceManager = (): DeviceManagerState => {
       // Request permission first to ensure labels are populated
       try {
         await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-      } catch (_) {
+      } catch {
         log.info('Initial permission request may have been denied, continuing...');
       }
       

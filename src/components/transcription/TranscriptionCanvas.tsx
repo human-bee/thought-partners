@@ -201,6 +201,7 @@ export function TranscriptionCanvas({ roomId }: TranscriptionCanvasProps) {
       const shape = {
         id,
         type: 'note',
+        parentId: editor.getCurrentPageId() as any,
         x,
         y,
         props: {
@@ -211,7 +212,8 @@ export function TranscriptionCanvas({ roomId }: TranscriptionCanvasProps) {
           align: 'middle',
           verticalAlign: 'middle',
           growY: true,
-        }
+        },
+        meta: { group: 'transcript' },
       };
 
       console.log('Creating new transcription note shape:', shape);

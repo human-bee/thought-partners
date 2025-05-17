@@ -1,0 +1,48 @@
+src/app/page.tsx:6 - default
+src/components/LiveKitTest.tsx:90 - LiveKitTest
+src/components/PreJoin.tsx:18 - default
+src/components/PreJoin.tsx:10 - JoinOptions (used in module)
+src/components/TLDrawDebugger.tsx:8 - TLDrawDebugger
+src/components/TranscriptionCanvas.tsx:12 - TestControls
+src/components/TranscriptionCanvas.tsx:158 - TranscriptionCanvas
+src/contexts/TranscriptStore.tsx:3 - TranscriptLine (used in module)
+src/hooks/useIsClient.ts:8 - useIsClient
+src/utils/livekit-diagnostics.ts:7 - LiveKitDiagnostics (used in module)
+src/utils/tldraw-debug.ts:9 - checkForDuplicateTldrawPackages (used in module)
+src/utils/tldraw-debug.ts:73 - markTldrawInstance
+.next/types/app/layout.ts:54 - PageProps
+.next/types/app/layout.ts:58 - LayoutProps (used in module)
+src/app/livekit-debug/page.tsx:7 - default
+src/app/test-livekit/page.tsx:90 - default
+src/app/transcription-board/page.tsx:9 - default
+src/app/videoconference/error.tsx:10 - default
+src/app/videoconference/layout.tsx:8 - default
+src/app/videoconference/layout.tsx:3 - metadata
+src/app/videoconference/loading.tsx:1 - default
+src/app/videoconference/page.tsx:7 - default
+src/components/transcription/useTranscriptionStore.ts:3 - TranscriptionEntry (used in module)
+src/components/transcription/useTranscriptionStore.ts:16 - useTranscriptionStore
+src/components/VideoConference/DeviceManager.tsx:13 - DeviceManagerState (used in module)
+src/components/VideoConference/DeviceManager.tsx:102 - findIOSDevices
+src/components/videoconference/VideoLogger.ts:4 - logLevels (used in module)
+src/tests/common/mocks.ts:6 - createMockMediaElement
+src/tests/common/mocks.ts:15 - mockEventHandlers
+src/tests/common/mocks.ts:25 - mockTokenResponse
+src/tests/common/test-utils.tsx:23 - render (used in module)
+src/tests/videoconference/setup.ts:8 - createMockRoom
+src/tests/videoconference/setup.ts:30 - createMockVideoTrack
+src/tests/videoconference/setup.ts:46 - createMockAudioTrack
+src/tests/videoconference/setup.ts:63 - mockTokenService
+src/tests/videoconference/setup.ts:71 - setupRoomData
+src/app/api/fact-check/route.ts:6 - POST
+src/app/api/fact-check/route.ts:4 - dynamic
+src/app/api/get-token/route.ts:20 - GET
+src/app/api/get-token/route.ts:28 - POST
+src/app/api/image-gen/route.ts:6 - POST
+src/app/api/image-gen/route.ts:4 - dynamic
+src/app/api/livekit-diagnostics/route.ts:6 - POST
+src/app/api/livekit-diagnostics/route.ts:38 - GET
+src/app/api/youtube-search/route.ts:11 - POST
+src/app/api/youtube-search/route.ts:4 - dynamic
+.next/types/app/whiteboard/[roomId]/page.ts:54 - PageProps (used in module)
+.next/types/app/whiteboard/[roomId]/page.ts:58 - LayoutProps

@@ -9,7 +9,6 @@ export async function POST(request: Request) {
     const { diagnostics } = data;
 
     // Log diagnostics to server log for analysis
-    console.log('LiveKit diagnostics received:', JSON.stringify(diagnostics, null, 2));
 
     // Here you could persist diagnostics to a database or send them to a
     // monitoring service for further analysis
@@ -21,7 +20,6 @@ export async function POST(request: Request) {
       issues: diagnostics.issues || []
     });
   } catch (error) {
-    console.error('Error processing LiveKit diagnostics:', error);
     return NextResponse.json(
       {
         success: false,

@@ -39,33 +39,27 @@ export const EnhancedLiveKitRoom: React.FC<Props> = ({
   }, [token]);
 
   const handleError = (err: Error) => {
-    console.error('LiveKit room error:', err);
     setError(err);
     if (onError) onError(err);
   };
 
   const handleDisconnect = () => {
-    console.log('LiveKit room disconnected');
     if (onDisconnected) onDisconnected();
   };
 
   const handleConnected = (room: Room) => {
-    console.log('LiveKit room connected:', room.name);
     // Reset reconnect attempts on successful connection
     reconnectAttempts.current = 0;
     if (onConnected) onConnected(room);
   };
 
   const handleConnectionStateChanged = (state: ConnectionState) => {
-    console.log('LiveKit connection state changed:', ConnectionState[state]);
     setConnectionState(state);
     
     if (state === ConnectionState.Reconnecting) {
       reconnectAttempts.current++;
-      console.log(`LiveKit reconnecting attempt ${reconnectAttempts.current} of ${maxReconnectAttempts}`);
       
       if (reconnectAttempts.current > maxReconnectAttempts) {
-        console.warn('LiveKit max reconnect attempts reached, will not retry further');
       }
     }
   };

@@ -56,7 +56,6 @@ export default function LiveKitDebugger() {
         ...prev,
         connectionError: error.message
       }));
-      console.log('LiveKit connection error:', error);
     };
     
     // Add listeners
@@ -104,7 +103,6 @@ export default function LiveKitDebugger() {
         connectionError: null, // Reset error on successful update
       });
     } catch (error: any) {
-      console.error('Error updating debug info:', error);
       setDebugInfo(prev => ({
         ...prev,
         connectionError: error?.message || 'Error updating debug info'
@@ -197,7 +195,6 @@ export default function LiveKitDebugger() {
       
       <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
         <button 
-          onClick={() => console.log('Token:', sessionStorage.getItem('livekit_token'))}
           style={{
             padding: '5px',
             backgroundColor: '#2196F3',
@@ -211,7 +208,6 @@ export default function LiveKitDebugger() {
         </button>
         
         <button 
-          onClick={() => roomContext?.room ? console.log('Room object:', roomContext.room) : console.log('No room available')}
           style={{
             padding: '5px',
             backgroundColor: '#009688',

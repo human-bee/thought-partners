@@ -55,17 +55,14 @@ export default function ClientOnlyWhiteboardRoom({ roomId }: { roomId: string })
       if (AudioContext && !audioContext) {
         const newAudioContext = new AudioContext();
         if (newAudioContext.state === 'running') {
-          newAudioContext.suspend().catch(console.error);
         }
         setAudioContext(newAudioContext);
       }
     } catch (error) {
-      console.error('Error initializing AudioContext:', error);
     }
 
     const handleUserInteraction = () => {
       if (audioContext && audioContext.state === 'suspended') {
-        audioContext.resume().catch(console.error);
       }
     };
 
@@ -79,7 +76,6 @@ export default function ClientOnlyWhiteboardRoom({ roomId }: { roomId: string })
         try {
           audioContext.close();
         } catch (error) {
-          console.warn('Error closing AudioContext:', error);
         }
       }
     };
@@ -104,7 +100,6 @@ export default function ClientOnlyWhiteboardRoom({ roomId }: { roomId: string })
 
   const handleJoin = useCallback((newToken: string) => {
     if (!newToken || newToken === '{}' || newToken === 'undefined') {
-      console.error('Invalid token received in handleJoin:', newToken);
       return;
     }
     sessionStorage.setItem('livekit_token', newToken);
@@ -120,27 +115,23 @@ export default function ClientOnlyWhiteboardRoom({ roomId }: { roomId: string })
           roomRef.current.disconnect(true);
           roomRef.current = null;
         } catch (err) {
-          console.error('Error disconnecting room:', err);
         }
       }
     };
     const handleDeviceChange = () => {
       if (roomRef.current && roomRef.current.localParticipant) {
-        console.log('Device change detected');
       }
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     try {
       navigator.mediaDevices.addEventListener('devicechange', handleDeviceChange);
     } catch (err) {
-      console.warn('Could not add devicechange listener:', err);
     }
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       try {
         navigator.mediaDevices.removeEventListener('devicechange', handleDeviceChange);
       } catch (err) {
-        console.warn('Could not remove devicechange listener:', err);
       }
     };
   }, []);
@@ -171,7 +162,6 @@ export default function ClientOnlyWhiteboardRoom({ roomId }: { roomId: string })
   }, [token]);
 
   const handleLiveKitError = useCallback((error: Error) => {
-    console.error('LiveKit error:', error);
     setLiveKitError(error.message);
     if (error.message.includes('token expired') || error.message.includes('permission')) {
       sessionStorage.setItem('livekit_needs_new_token', 'true');

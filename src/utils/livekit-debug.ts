@@ -6,8 +6,6 @@ class LiveKitDebugger {
 
   clearLogs() {
     this.logs = [];
-    console.clear();
-    console.log('LiveKit Debug Session Started');
   }
 
   log(message: string, level: 'info' | 'error' | 'warn' = 'info') {
@@ -21,20 +19,16 @@ class LiveKitDebugger {
       // Always log to console for visibility
       switch(validLevel) {
         case 'error':
-          console.error(logMessage);
           break;
         case 'warn':
-          console.warn(logMessage);
           break;
         default:
-          console.log(logMessage);
       }
       
       this.logs.push(logMessage);
     } catch (error) {
       // Fallback logging in case of errors
       const fallbackMessage = `[LiveKit ${new Date().toISOString()}] ERROR: ${message} (Logging error: ${error})`;
-      console.error(fallbackMessage);
       this.logs.push(fallbackMessage);
     }
   }
@@ -141,7 +135,6 @@ class LiveKitDebugger {
       this.logConnectionDetails(room);
     } catch (error) {
       this.log(`Error attaching debugger to room: ${error}`, 'error');
-      console.error('Full error:', error);
     }
   }
 
@@ -161,7 +154,6 @@ class LiveKitDebugger {
       }
     } catch (error) {
       this.log(`Error logging connection details: ${error}`, 'error');
-      console.error('Full error:', error);
     }
   }
 
@@ -189,7 +181,6 @@ class LiveKitDebugger {
       this.log('Token validation passed - JWT structure is valid');
       
       // Log the entire payload for debugging
-      console.log('Token payload:', payload);
       
       // Check critical fields
       const missingFields = [];
@@ -233,7 +224,6 @@ class LiveKitDebugger {
       }
     } catch (error) {
       this.log(`Token validation failed: ${error}`, 'error');
-      console.error('Full token validation error:', error);
     }
   }
 }

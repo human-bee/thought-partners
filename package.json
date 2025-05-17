@@ -14,10 +14,10 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
     "@deepgram/sdk": "^3.11.2",
-    "@livekit/components-react": "^2.8.1",
-    "@livekit/components-styles": "^1.1.4",
+    "@livekit/components-react": "^2.9.4",
+    "@livekit/components-styles": "^1.1.5",
     "@tldraw/tldraw": "^3.11.0",
-    "livekit-client": "^2.9.8",
+    "livekit-client": "^2.13.0",
     "livekit-server-sdk": "^2.10.2",
     "next": "15.2.3",
     "openai": "^4.89.0",

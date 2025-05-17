@@ -27,7 +27,7 @@ export default function TranscriptionBoardPage() {
     const fetchToken = async () => {
       setIsConnecting(true);
       try {
-        const response = await fetch(`/api/get-participant-token?room=${roomName}&username=${username}`);
+        const response = await fetch(`/api/get-token?room=${roomName}&username=${username}`);
         
         if (!response.ok) {
           throw new Error(`Failed to get token: ${response.statusText}`);
@@ -36,7 +36,6 @@ export default function TranscriptionBoardPage() {
         const data = await response.json();
         setToken(data.token);
       } catch (err) {
-        console.error('Error fetching token:', err);
         setError(`Failed to connect: ${err instanceof Error ? err.message : String(err)}`);
       } finally {
         setIsConnecting(false);
@@ -47,15 +46,12 @@ export default function TranscriptionBoardPage() {
   }, [roomName, username, router]);
 
   const handleConnected = () => {
-    console.log('Connected to room:', roomName);
   };
 
   const handleDisconnected = () => {
-    console.log('Disconnected from room');
   };
 
   const handleError = (err: Error) => {
-    console.error('LiveKit error:', err);
     setError(`Connection error: ${err.message}`);
   };
 

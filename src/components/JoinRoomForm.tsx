@@ -21,15 +21,14 @@ const JoinRoomForm = memo(function JoinRoomForm({ roomId, onJoin }: JoinRoomForm
 
     try {
       // First, get a token for the LiveKit room
-      const response = await fetch('/api/create-agent', {
+      const response = await fetch('/api/get-token', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          roomName: roomId,
-          participantName: username,
-          createAiAgent
+          room: roomId,
+          username
         }),
       });
 
@@ -42,7 +41,6 @@ const JoinRoomForm = memo(function JoinRoomForm({ roomId, onJoin }: JoinRoomForm
       if (data.token) {
         // Validate the token before proceeding
         if (!data.token || data.token === '{}' || data.token === 'undefined') {
-          console.error('Invalid token received from server:', data.token);
           throw new Error('Invalid token received from the server');
         }
         
@@ -53,7 +51,6 @@ const JoinRoomForm = memo(function JoinRoomForm({ roomId, onJoin }: JoinRoomForm
         
         // Additional validation to ensure token is not empty
         if (tokenStr === '{}' || tokenStr === 'undefined' || tokenStr === '') {
-          console.error('Empty or invalid token after conversion:', tokenStr);
           throw new Error('Invalid token format received from server');
         }
         
@@ -64,12 +61,11 @@ const JoinRoomForm = memo(function JoinRoomForm({ roomId, onJoin }: JoinRoomForm
         throw new Error('No token received from server');
       }
     } catch (error) {
-      console.error('Error joining room:', error);
       setError(error instanceof Error ? error.message : 'Failed to join room. Please try again.');
     } finally {
       setIsLoading(false);
     }
-  }, [roomId, username, createAiAgent, onJoin]);
+  }, [roomId, username, onJoin]);
 
   // Prevent event propagation to avoid context closed errors
   const handleCheckboxChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {

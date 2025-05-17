@@ -166,12 +166,14 @@ NEXT_PUBLIC_DISABLE_REACT_LOGS=true
 
 ---
 
-## API Endpoints
+## API: /api/get-token
 
-- `/api/get-token` – Generates a LiveKit token for a user/room
-- `/api/refresh-token` – Refreshes a LiveKit token
-- `/api/livekit` – Alternate LiveKit token endpoint
-- `/api/create-agent` – (Placeholder) For AI agent creation; requires additional backend setup
+LiveKit token generation endpoint. Supports GET/POST requests.
+
+### Parameters
+- `room`/`roomName`: Room name
+- `username`/`identity`/`participantName`: User identity
+- `refresh` (optional): Trigger token refresh
 
 ---
 

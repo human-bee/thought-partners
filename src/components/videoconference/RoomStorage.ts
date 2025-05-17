@@ -91,27 +91,4 @@ export const getRoomInfo = (): RoomInfo => {
     log.warn('Failed to retrieve room info:', e);
     return { roomName: null, identity: null };
   }
-};
-
-/**
- * Attempts to extract and decode a stored LiveKit token
- */
-export const getTokenInfo = (): { room?: string, identity?: string } => {
-  try {
-    const storedToken = sessionStorage.getItem('livekit_token');
-    if (storedToken) {
-      const tokenParts = storedToken.split('.');
-      if (tokenParts.length === 3) {
-        const payload = JSON.parse(atob(tokenParts[1]));
-        return {
-          room: payload.video?.room,
-          identity: payload.sub
-        };
-      }
-    }
-    return {};
-  } catch (e) {
-    log.warn('Failed to decode token:', e);
-    return {};
-  }
 }; 

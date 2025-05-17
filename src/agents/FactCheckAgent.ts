@@ -13,22 +13,18 @@ export function registerFactCheckAgent() {
   if ((window as any).__factCheckAgentRegistered) return
   ;(window as any).__factCheckAgentRegistered = true
 
-  console.log('[FactCheckAgent] Registered key listener')
 
   window.addEventListener('keydown', async (e) => {
     if ((e.key !== '1' && e.code !== 'Digit1') || e.repeat) return
 
-    console.log('[FactCheckAgent] 1 key pressed')
 
     const store = (window as any).__transcriptStore
     if (!store) {
-      console.warn('[FactCheckAgent] Transcript store not ready')
       return
     }
 
     const controller = (window as any).__whiteboardController
     if (!controller) {
-      console.warn('[FactCheckAgent] Whiteboard controller not ready')
       return
     }
 
@@ -49,22 +45,18 @@ export function registerFactCheckAgent() {
       })
 
       if (!res.ok) {
-        console.error('[FactCheckAgent] /api/fact-check error', res.status)
         return
       }
 
       const json = await res.json()
-      console.log('[FactCheckAgent] API response', json)
       if (Array.isArray(json.results)) {
         factResults = json.results
       }
     } catch (err) {
-      console.error('[FactCheckAgent] Fact-check fetch error', err)
       return
     }
 
     if (!factResults.length) {
-      console.log('[FactCheckAgent] No factual claims detected')
       return
     }
 
@@ -76,26 +68,24 @@ export function registerFactCheckAgent() {
       // y-offset each note a bit so they don't overlap
       const y = 100 + idx * 140
 
-      console.log('[FactCheckAgent] Creating note', verdict, score)
-
-      controller.applyChange({
-        type: 'createShape',
-        description: 'fact-check note',
-        shape: {
-          id: id as any,
-          type: 'note',
-          x: 100,
-          y,
-          props: {
-            richText: toRichText(`Fact-check: ${verdict} (${score}/10)`),
-            color,
-            size: 'm',
-            font: 'draw',
-            align: 'start',
-            verticalAlign: 'middle',
-            growY: true,
-          },
+      const editor = (window as any).__editorInstance;
+      const pageId = editor?.getCurrentPageId?.() || 'page:page';
+      controller.editor.createShape({
+        id: id as string,
+        type: 'note',
+        parentId: pageId as any,
+        x: 100,
+        y,
+        props: {
+          richText: toRichText(`Fact-check: ${verdict} (${score}/10)`),
+          color,
+          size: 'm',
+          font: 'draw',
+          align: 'start',
+          verticalAlign: 'middle',
+          growY: true,
         },
+        meta: { group: 'agent' },
       } as any)
 
       store.addLine({

@@ -43,7 +43,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ results: resultsArr })
   } catch (err) {
-    console.error('[fact-check API] error', err)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 } 

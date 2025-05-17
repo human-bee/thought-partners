@@ -70,6 +70,5 @@ if (typeof window !== 'undefined') {
   
   // Log all environment variables in development
   if (process.env.NODE_ENV === 'development') {
-    console.log('clientEnv initialized with:', clientEnv);
   }
 } 

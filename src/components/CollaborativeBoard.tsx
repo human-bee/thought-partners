@@ -3,16 +3,8 @@ import { useEffect, useState, useCallback, useMemo, useRef, memo } from 'react';
 import 'tldraw/tldraw.css';
 import { useLocalParticipant, useRoomContext } from '@livekit/components-react';
 import { DataPacket_Kind, Room, ConnectionState } from 'livekit-client';
-import { Editor } from '@tldraw/editor';
 import { WhiteboardController } from '@/controllers/WhiteboardController';
 import { useTranscriptStore } from '@/contexts/TranscriptStore';
-
-// Add render counter
-let renderCount = 0;
-
-interface CollaborativeBoardProps {
-  roomId: string;
-}
 
 interface TranscriptionEntry {
   participantIdentity: string;
@@ -21,36 +13,13 @@ interface TranscriptionEntry {
   timestamp: Date;
 }
 
-interface DataMessage {
-  topic: string;
-  data: string;
-}
-
-// We'll use type assertion instead of extending the interfaces
-// to avoid type compatibility issues with the actual implementations
-// The Room type from livekit-client already has the properties we need
-
-// Define TLTextShapeProps to match actual implementation
-interface TLTextShapeProps {
-  text: string;
-  color: string;
-  size: string;
-  width: number;
-  font: string;
-  align: string;
-  autoSize: boolean;
-  verticalAlign?: string;
+interface CollaborativeBoardProps {
+  transcriptVisible: boolean;
+  agentsVisible: boolean;
 }
 
 // Wrap with memo to prevent unnecessary rerenders
-const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: CollaborativeBoardProps) {
-  // Debug: Track renders
-  const renderCountRef = useRef(0);
-  renderCount++;
-  renderCountRef.current++;
-  
-  console.time(`CollaborativeBoard render ${renderCountRef.current}`);
-  
+const CollaborativeBoard = memo(function CollaborativeBoard({ transcriptVisible, agentsVisible }: CollaborativeBoardProps) {
   const [store, setStore] = useState<ReturnType<typeof createTLStore> | null>(null);
   const localParticipantData = useLocalParticipant();
   const roomContext = useRoomContext();
@@ -92,7 +61,6 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
   // Debug: Log unmounting
   useEffect(() => {
     return () => {
-      console.log(`CollaborativeBoard unmounting: render count was ${renderCountRef.current}`);
       // Stop transcription when component unmounts
       if (recognition) {
         try {
@@ -308,9 +276,11 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
       console.log('Creating note with text:', displayText);
       
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pageId = editor.getCurrentPageId();
       const noteShape: any = {
         id,
         type: 'note',
+        parentId: pageId as any,
         x: 50 + Math.random() * 400,
         y: 50 + Math.random() * 400,
         props: {
@@ -323,6 +293,7 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
           verticalAlign: 'middle',
           growY: true,
         },
+        meta: { group: 'transcript' },
       };
       
       console.log('Note shape object:', noteShape);
@@ -417,7 +388,8 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
             font: 'draw',
             textAlign: 'middle',
             scale: 5,     // Large size
-          }
+          },
+          meta: { group: 'watermark' },
         }]);
         
         console.log('Added fully visible PRESENT watermark to canvas as a tldraw text shape');
@@ -456,6 +428,10 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
         console.error('Error publishing drawing updates:', error);
       }
     });
+
+    // --- Layer initialization ---
+    // (Removed: no custom layer creation)
+    // --- End layer initialization ---
   }, [localParticipant, roomContext, publishData]);
 
   // Set up browser speech recognition
@@ -566,16 +542,25 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
 
     return (
       <div className="w-full h-full">
-        <Tldraw
-          store={store}
-          onMount={handleMount}
-        />
+        {/*
+          getShapeVisibility is not yet typed in tldraw@2.x, so we cast as any to allow the prop.
+          See: https://tldraw.dev/docs/shapes#Meta-information
+        */}
+        {(
+          <Tldraw
+            store={store}
+            onMount={handleMount}
+            getShapeVisibility={(shape: { meta?: { group?: string } }) => {
+              if (shape.meta?.group === 'agent' && !agentsVisible) return 'hidden';
+              if (shape.meta?.group === 'transcript' && !transcriptVisible) return 'hidden';
+              return 'visible';
+            }}
+          />
+        ) as any}
       </div>
     );
-  }, [store, handleMount]);
+  }, [store, handleMount, transcriptVisible, agentsVisible]);
 
-  console.timeEnd(`CollaborativeBoard render ${renderCountRef.current}`);
-  
   return (
     <div className="h-full w-full overflow-hidden bg-white relative">
       {tldrawComponent}

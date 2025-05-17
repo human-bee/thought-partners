@@ -20,7 +20,6 @@ export default function VideoConferencePage() {
   
   // Handle errors from VideoConference component
   const handleError = (error: Error) => {
-    console.error('VideoConference error:', error);
   };
   
   // Only render VideoConference component on client-side

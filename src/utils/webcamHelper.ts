@@ -40,20 +40,17 @@ export class WebcamHelper {
           const cameraPermission = await navigator.permissions.query({ name: 'camera' as PermissionName });
           results.camera = cameraPermission.state as MediaPermissionStatus;
         } catch (err) {
-          console.warn('Could not query camera permission status:', err);
         }
         
         try {
           const micPermission = await navigator.permissions.query({ name: 'microphone' as PermissionName });
           results.microphone = micPermission.state as MediaPermissionStatus;
         } catch (err) {
-          console.warn('Could not query microphone permission status:', err);
         }
       }
       
       return results;
     } catch (error) {
-      console.error('Error checking media permissions:', error);
       return { camera: 'unknown', microphone: 'unknown' };
     }
   }
@@ -82,7 +79,6 @@ export class WebcamHelper {
           }))
       };
     } catch (error) {
-      console.error('Error getting media devices:', error);
       return { videoDevices: [], audioDevices: [] };
     }
   }
@@ -109,7 +105,6 @@ export class WebcamHelper {
         stream
       };
     } catch (error) {
-      console.error('Error starting camera:', error);
       return {
         success: false,
         message: this.getErrorMessage(error),

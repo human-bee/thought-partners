@@ -1,5 +1,5 @@
 import { LocalParticipant, Participant, RemoteParticipant, Room, RoomEvent, Track, ConnectionState } from 'livekit-client';
-import { VideoLogger } from '../components/videoconference/VideoLogger';
+import { log } from '../components/videoconference/VideoLogger';
 
 /**
  * A diagnostic utility for LiveKit connections
@@ -31,7 +31,7 @@ export class LiveKitDiagnostics {
   public attachToRoom(room: Room): void {
     this.room = room;
     this.startListening();
-    VideoLogger.log('LiveKitDiagnostics: Attached to room');
+    log.info('LiveKitDiagnostics: Attached to room');
   }
 
   /**
@@ -42,7 +42,7 @@ export class LiveKitDiagnostics {
     this.isRecording = true;
     this.startTime = Date.now();
     this.logEvent('Recording started');
-    VideoLogger.log('LiveKitDiagnostics: Started recording events');
+    log.info('LiveKitDiagnostics: Started recording events');
   }
 
   /**
@@ -51,7 +51,7 @@ export class LiveKitDiagnostics {
   public stopRecording(): any[] {
     this.isRecording = false;
     this.logEvent('Recording stopped');
-    VideoLogger.log('LiveKitDiagnostics: Stopped recording events');
+    log.info('LiveKitDiagnostics: Stopped recording events');
     return this.getDiagnosticEvents();
   }
 

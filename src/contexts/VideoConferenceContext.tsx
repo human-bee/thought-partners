@@ -75,9 +75,7 @@ export const VideoConferenceProvider: React.FC<VideoConferenceProviderProps> = (
           if (parts.length === 3) {
             return storedToken;
           }
-          console.warn('Invalid token structure in session storage');
         } catch (e) {
-          console.error('Token validation failed:', e);
         }
       }
     }
@@ -97,7 +95,6 @@ export const VideoConferenceProvider: React.FC<VideoConferenceProviderProps> = (
       try {
         const parts = token.split('.');
         if (parts.length !== 3) {
-          console.error('Invalid token structure');
           setToken(null);
           return;
         }
@@ -105,7 +102,6 @@ export const VideoConferenceProvider: React.FC<VideoConferenceProviderProps> = (
         // Decode token payload to check expiration
         const payload = JSON.parse(atob(parts[1]));
         if (!payload.exp) {
-          console.error('Token missing expiration time');
           setToken(null);
           return;
         }
@@ -116,7 +112,6 @@ export const VideoConferenceProvider: React.FC<VideoConferenceProviderProps> = (
 
         // If token is already expired or expiring in less than 10 seconds, don't use it
         if (timeToExpiry <= 10000) {
-          console.error('Token has expired or is about to expire very soon');
           setToken(null);
           return;
         }
@@ -129,7 +124,6 @@ export const VideoConferenceProvider: React.FC<VideoConferenceProviderProps> = (
         // Schedule token refresh for 1 minute before expiration or at half of token lifetime if token is short-lived
         const refreshBuffer = Math.min(60000, timeToExpiry / 2);
         tokenValidationTimeoutRef.current = setTimeout(() => {
-          console.log('Token about to expire, triggering refresh...');
           // Call token refresh API or just clear the current token to trigger a re-login
           setToken(null);
         }, Math.max(0, timeToExpiry - refreshBuffer));
@@ -137,7 +131,6 @@ export const VideoConferenceProvider: React.FC<VideoConferenceProviderProps> = (
         // Store valid token
         sessionStorage.setItem('livekit_token', token);
       } catch (e) {
-        console.error('Token validation failed:', e);
         setToken(null);
       }
     } else {
@@ -170,7 +163,6 @@ export const VideoConferenceProvider: React.FC<VideoConferenceProviderProps> = (
         setIsConnected(true);
         setIsReconnecting(false);
         setHasError(false);
-        console.log('Room connected successfully');
       }
     };
 
@@ -178,14 +170,12 @@ export const VideoConferenceProvider: React.FC<VideoConferenceProviderProps> = (
       if (!isUnmountingRef.current) {
         setIsConnected(false);
         setIsReconnecting(false);
-        console.log('Room disconnected');
       }
     };
 
     const handleReconnecting = () => {
       if (!isUnmountingRef.current) {
         setIsReconnecting(true);
-        console.log('Room reconnecting...');
       }
     };
 
@@ -194,13 +184,11 @@ export const VideoConferenceProvider: React.FC<VideoConferenceProviderProps> = (
         setIsConnected(true);
         setIsReconnecting(false);
         setHasError(false);
-        console.log('Room reconnected successfully');
       }
     };
 
     const handleError = (error: Error) => {
       if (!isUnmountingRef.current) {
-        console.error('Room error:', error);
         setHasError(true);
       }
     };
@@ -232,7 +220,6 @@ export const VideoConferenceProvider: React.FC<VideoConferenceProviderProps> = (
       setIsConnected(true);
       setIsReconnecting(false);
       setHasError(false);
-      console.log('Room connected successfully');
     }
   };
 
@@ -240,14 +227,12 @@ export const VideoConferenceProvider: React.FC<VideoConferenceProviderProps> = (
     if (!isUnmountingRef.current) {
       setIsConnected(false);
       setIsReconnecting(false);
-      console.log('Room disconnected');
     }
   };
 
   const handleRoomReconnecting = () => {
     if (!isUnmountingRef.current) {
       setIsReconnecting(true);
-      console.log('Room reconnecting...');
     }
   };
 
@@ -256,7 +241,6 @@ export const VideoConferenceProvider: React.FC<VideoConferenceProviderProps> = (
       setIsConnected(true);
       setIsReconnecting(false);
       setHasError(false);
-      console.log('Room reconnected successfully');
     }
   };
 
@@ -265,7 +249,6 @@ export const VideoConferenceProvider: React.FC<VideoConferenceProviderProps> = (
       setHasError(isFailed);
       setIsConnected(false);
       setIsReconnecting(false);
-      console.error('Room connection failed');
     }
   };
 
@@ -276,7 +259,6 @@ export const VideoConferenceProvider: React.FC<VideoConferenceProviderProps> = (
       setIsConnected(false);
       setIsReconnecting(false);
       setHasError(false);
-      console.log('Room cleanup completed');
     }
   };
 
@@ -320,36 +302,28 @@ export const VideoConferenceProvider: React.FC<VideoConferenceProviderProps> = (
             peerConnectionTimeout: 60000, // 60 seconds
           }}
           onError={(error) => {
-            console.error('LiveKitRoom error:', error);
             
             // Enhanced error handling with more detailed logging
             if (error.message.includes('token expired')) {
-              console.log('Token expired, clearing token to force re-login');
               setToken(null);
             } else if (error.message.includes('permission')) {
-              console.log('Permission error, clearing token to force re-login');
               setToken(null);
             } else if (error.message.includes('timeout') || error.message.includes('timed out')) {
-              console.log('Connection timeout, may need to reconnect');
               // For timeouts, we'll set the error but not immediately clear the token
               // This allows retry logic to work in components
             } else if (error.message.includes('connection') || error.message.includes('connect')) {
-              console.log('Connection error, may need network check');
             } else {
-              console.log('Other LiveKit error:', error.message);
             }
             
             setHasError(true);
           }}
           // Ensure proper disconnect handling to clean up resources
           onConnected={() => {
-            console.log('LiveKitRoom connected through provider');
             setIsConnected(true);
             setIsReconnecting(false);
             setHasError(false);
           }}
           onDisconnected={() => {
-            console.log('LiveKitRoom disconnected through provider');
             setIsConnected(false);
             setIsReconnecting(false);
           }}

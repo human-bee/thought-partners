@@ -4,125 +4,84 @@ import { NextRequest, NextResponse } from 'next/server';
 const LIVEKIT_API_KEY = process.env.LIVEKIT_API_KEY;
 const LIVEKIT_API_SECRET = process.env.LIVEKIT_API_SECRET;
 
-// GET method for backward compatibility with existing code
-export async function GET(request: NextRequest) {
-  console.log('Token request received:', {
-    apiKey: LIVEKIT_API_KEY ? 'defined' : 'undefined',
-    apiSecret: LIVEKIT_API_SECRET ? 'defined' : 'undefined'
-  });
-
-  const searchParams = request.nextUrl.searchParams;
-  const room = searchParams.get('room');
-  const username = searchParams.get('username');
-  
-  console.log('Request parameters:', { room, username });
-  
-  return handleTokenRequest(room, username);
+function getParam(obj: any, ...keys: string[]) {
+  for (const key of keys) {
+    if (typeof obj.get === 'function') {
+      // URLSearchParams
+      const val = obj.get(key);
+      if (val) return val;
+    } else if (key in obj && obj[key]) {
+      return obj[key];
+    }
+  }
+  return null;
 }
 
-// POST method to match the parent project
+export async function GET(request: NextRequest) {
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const params = request.nextUrl.searchParams;
+  const room = getParam(params, 'room', 'roomName');
+  const username = getParam(params, 'username', 'identity', 'participantName');
+  const refresh = params.get('refresh') === 'true';
+  return handleTokenRequest({ room, username, refresh });
+}
+
 export async function POST(request: NextRequest) {
+  const authHeader = request.headers.get('Authorization');
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
   try {
     const body = await request.json();
-    const { room, username } = body;
-    
-    return handleTokenRequest(room, username);
+    const room = getParam(body, 'room', 'roomName');
+    const username = getParam(body, 'username', 'identity', 'participantName');
+    const refresh = !!body.refresh;
+    return handleTokenRequest({ room, username, refresh });
   } catch (error) {
-    console.error('Error parsing request:', error);
-    return NextResponse.json(
-      { error: 'Invalid request format' },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: 'Invalid request format' }, { status: 400 });
   }
 }
 
-// Common handler for both GET and POST
-async function handleTokenRequest(room: string | null, username: string | null) {
+async function handleTokenRequest({ room, username, refresh }: { room: string | null, username: string | null, refresh?: boolean }) {
   if (!room || !username) {
-    console.error('Missing parameters:', { room, username });
-    return NextResponse.json(
-      { error: 'Missing required parameters: room and username' },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: 'Missing required parameters: room and username' }, { status: 400 });
   }
-  
-  // Validate environment variables
   if (!LIVEKIT_API_KEY || !LIVEKIT_API_SECRET) {
-    console.error('Environment variables missing:', {
-      LIVEKIT_API_KEY: !!LIVEKIT_API_KEY,
-      LIVEKIT_API_SECRET: !!LIVEKIT_API_SECRET
-    });
-    return NextResponse.json(
-      { error: 'Server configuration error - LiveKit credentials not found' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Server configuration error - LiveKit credentials not found' }, { status: 500 });
   }
-  
+
   try {
-    console.log('Creating AccessToken with params:', {
-      room,
-      username,
-      apiKeyLength: LIVEKIT_API_KEY.length,
-      apiSecretLength: LIVEKIT_API_SECRET.length
+    const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
+      identity: username,
+      name: username,
+      ttl: 60 * 60 * 12, // 12 hours in seconds
     });
 
-    // Create a token with specified identity and room access
-    const at = new AccessToken(
-      LIVEKIT_API_KEY,
-      LIVEKIT_API_SECRET,
-      {
-        identity: username,
-        name: username,
-        ttl: 3600 * 12, // 12 hours in seconds
-      }
-    );
-    
-    // Grant appropriate permissions
+    // Grant all relevant permissions
     at.addGrant({
       room,
       roomJoin: true,
       canPublish: true,
       canSubscribe: true,
       canPublishData: true,
-      canPublishAudio: true,
-      canPublishVideo: true,
       canPublishSources: [
         TrackSource.CAMERA,
         TrackSource.MICROPHONE,
         TrackSource.SCREEN_SHARE,
         TrackSource.SCREEN_SHARE_AUDIO
-      ]
+      ],
     });
-    
-    console.log('Generating JWT token...');
-    const token = await at.toJwt(); // Make sure to await the token generation
-    
-    // Verify token is a string
-    if (typeof token !== 'string') {
-      console.error('Token generation error: Token is not a string', token);
-      return NextResponse.json(
-        { error: 'Generated token is not valid' },
-        { status: 500 }
-      );
+
+    const token = await at.toJwt();
+    if (typeof token !== 'string' || !token) {
+      return NextResponse.json({ error: 'Generated token is not valid' }, { status: 500 });
     }
-    
-    console.log('Token generated successfully');
+
     return NextResponse.json({ token });
-  } catch (error) {
-    console.error('Detailed error in token generation:', {
-      error,
-      message: error.message,
-      stack: error.stack,
-      room,
-      username
-    });
-    
-    return NextResponse.json(
-      { 
-        error: 'Failed to generate token',
-        details: error.message 
-      },
-      { status: 500 }
-    );
+  } catch (error: any) {
+    return NextResponse.json({ error: 'Failed to generate token', details: error.message }, { status: 500 });
   }
 } 

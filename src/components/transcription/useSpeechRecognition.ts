@@ -144,6 +144,7 @@ export function useSpeechRecognition(): SpeechRecognitionHook {
                 window.__editorInstance.createShapes([{
                   id,
                   type: 'note',
+                  parentId: window.__editorInstance.getCurrentPageId() as any,
                   x: window.__editorInstance.getViewportPageBounds().center.x,
                   y: window.__editorInstance.getViewportPageBounds().center.y,
                   props: {
@@ -154,7 +155,8 @@ export function useSpeechRecognition(): SpeechRecognitionHook {
                     align: 'middle',
                     verticalAlign: 'middle',
                     growY: true,
-                  }
+                  },
+                  meta: { group: 'transcript' },
                 }]);
               }
             } catch (error) {

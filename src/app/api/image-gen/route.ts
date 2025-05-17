@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
+import { Buffer } from 'buffer'
 
 export const dynamic = 'force-dynamic'
 
@@ -30,7 +31,6 @@ export async function POST(req: NextRequest) {
       })
       imageUrl = out.data?.[0]?.url
     } catch (err) {
-      console.error('[image-gen] dall-e-3 error – falling back', err)
     }
 
     if (!imageUrl) {
@@ -43,7 +43,6 @@ export async function POST(req: NextRequest) {
         })
         imageUrl = out.data?.[0]?.url
       } catch (err) {
-        console.error('[image-gen] dall-e-2 error', err)
         return NextResponse.json({ error: 'Generation failed', details: (err as Error).message }, { status: 500 })
       }
     }
@@ -52,9 +51,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Generation failed' }, { status: 500 })
     }
 
+    // Return the OpenAI image URL directly
     return NextResponse.json({ imageUrl })
   } catch (err) {
-    console.error('[image-gen] error', err)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 } 
