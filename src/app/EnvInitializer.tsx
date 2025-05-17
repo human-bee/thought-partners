@@ -1,6 +1,10 @@
 'use client';
 
 import { useEffect } from 'react';
+// Import for side effects: registers fact-check agent
+import '@/agents/FactCheckAgent'
+import '@/agents/YoutubeClipAgent'
+import '@/agents/ImageGenAgent'
 
 // Client component for environment initialization and logging
 export function EnvInitializer() {

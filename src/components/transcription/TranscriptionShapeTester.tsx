@@ -1,3 +1,5 @@
+"use client";
+
 import { useCallback, useRef } from 'react';
 import { Editor, createShapeId, toRichText } from '@tldraw/editor';
 import { Tldraw } from '@tldraw/tldraw';

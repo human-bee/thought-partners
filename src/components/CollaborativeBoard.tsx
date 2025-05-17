@@ -1,8 +1,11 @@
-import { Tldraw, createTLStore, defaultShapeUtils, createShapeId } from 'tldraw';
+import { Tldraw, createTLStore, defaultShapeUtils, createShapeId, toRichText } from 'tldraw';
 import { useEffect, useState, useCallback, useMemo, useRef, memo } from 'react';
 import 'tldraw/tldraw.css';
 import { useLocalParticipant, useRoomContext } from '@livekit/components-react';
-import { DataPacket_Kind } from 'livekit-client';
+import { DataPacket_Kind, Room, ConnectionState } from 'livekit-client';
+import { Editor } from '@tldraw/editor';
+import { WhiteboardController } from '@/controllers/WhiteboardController';
+import { useTranscriptStore } from '@/contexts/TranscriptStore';
 
 // Add render counter
 let renderCount = 0;
@@ -23,18 +26,9 @@ interface DataMessage {
   data: string;
 }
 
-// Extend the Room type to include LiveKit's actual properties
-interface ExtendedRoom extends Room {
-  dataReceived: {
-    on: (callback: (data: Uint8Array) => void) => void;
-    off: (callback: (data: Uint8Array) => void) => void;
-  };
-  localParticipant: {
-    identity: string;
-    name: string;
-    publishData: (data: Uint8Array, kind: DataPacket_Kind) => void;
-  };
-}
+// We'll use type assertion instead of extending the interfaces
+// to avoid type compatibility issues with the actual implementations
+// The Room type from livekit-client already has the properties we need
 
 // Define TLTextShapeProps to match actual implementation
 interface TLTextShapeProps {
@@ -46,12 +40,6 @@ interface TLTextShapeProps {
   align: string;
   autoSize: boolean;
   verticalAlign?: string;
-}
-
-// Extend the Editor type to include missing methods
-interface ExtendedEditor extends Editor {
-  getChanges: () => any[];
-  createShapes: (shapes: any[]) => void;
 }
 
 // Wrap with memo to prevent unnecessary rerenders
@@ -68,11 +56,18 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
   const roomContext = useRoomContext();
   const localParticipant = localParticipantData?.localParticipant;
   const storeInitializedRef = useRef(false);
+  // Use any type for editor to avoid complex type issues
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const editorRef = useRef<any>(null);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
   const recognitionInitializedRef = useRef(false);
+
+  // Central change-based controller
+  const controllerRef = useRef<WhiteboardController | null>(null);
+
+  // Transcript store context
+  const { addLine: addTranscriptLine } = useTranscriptStore();
 
   // Debug: Track state changes
   const prevStoreRef = useRef(store);
@@ -222,10 +217,89 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
     }
     
     const editor = editorRef.current;
+    const controller = controllerRef.current;
+    if (!controller) {
+      console.warn('WhiteboardController not ready');
+      return;
+    }
     console.log('Editor instance is available:', editor);
     
     try {
-      // Create a new note shape (better for transcriptions than text)
+      // First, push to transcript store
+      addTranscriptLine({
+        authorId: entry.participantIdentity,
+        authorName: entry.participantName,
+        text: entry.text,
+        timestamp: entry.timestamp,
+      });
+
+      // Track notes per participant to append instead of creating new ones
+      const participantNoteRefs = editorRef.current._participantNoteRefs = editorRef.current._participantNoteRefs || new Map();
+      const existingNoteId = participantNoteRefs.get(entry.participantIdentity);
+      
+      // If we have an existing note for this participant, update it instead of creating a new one
+      if (existingNoteId) {
+        const existingShape = editor.getShape(existingNoteId);
+        
+        if (existingShape && existingShape.type === 'note') {
+          console.log('Found existing note for participant:', entry.participantIdentity);
+          
+          // Get the existing content
+          const existingProps = existingShape.props || {};
+          
+          // Handle different property formats (content or richText)
+          let currentText = '';
+          if (existingProps.content) {
+            currentText = typeof existingProps.content === 'string' 
+              ? existingProps.content 
+              : (existingProps.content.text || '');
+          } else if (existingProps.richText) {
+            // Extract text from rich text format (simplified)
+            try {
+              currentText = existingProps.richText.text || '';
+            } catch (e) {
+              console.warn('Error extracting text from rich text:', e);
+            }
+          }
+          
+          // Format the transcription content
+          const displayText = `${entry.participantName}: ${entry.text}`;
+          
+          // Append new text to existing content
+          const updatedText = currentText ? `${currentText}\n${displayText}` : displayText;
+          
+          // Update the shape with appended text
+          console.log('Updating note with appended text:', updatedText);
+          
+          try {
+            controller.applyChange({
+              type: 'updateShape',
+              description: 'Update transcription note',
+              shape: {
+                id: existingNoteId,
+                type: 'note',
+                props: {
+                  ...existingProps,
+                  richText: editor.textUtils
+                    ? editor.textUtils.toRichText(updatedText)
+                    : updatedText,
+                },
+              },
+            });
+            
+            console.log('Note updated successfully');
+            return;
+          } catch (updateError) {
+            console.error('Error updating existing note:', updateError);
+            // Fall through to create a new note if update fails
+          }
+        } else {
+          console.warn('Referenced note no longer exists, creating new note');
+          participantNoteRefs.delete(entry.participantIdentity);
+        }
+      }
+      
+      // Create a new note if no existing note or update failed
       const id = createShapeId();
       console.log('Generated shape ID:', id);
       
@@ -237,13 +311,13 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
       const noteShape: any = {
         id,
         type: 'note',
-        x: 50 + Math.random() * 400, // Random position
+        x: 50 + Math.random() * 400,
         y: 50 + Math.random() * 400,
         props: {
-          content: displayText,
+          richText: toRichText(displayText),
           color: 'yellow',
           size: 'm',
-          width: 300,
+          w: 300,
           font: 'draw',
           align: 'start',
           verticalAlign: 'middle',
@@ -262,29 +336,41 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
         console.warn('Error getting note shape util:', e);
       }
       
-      // Add the shape to the canvas
-      console.log('About to call editor.createShapes');
-      editor.createShapes([noteShape]);
-      console.log('Successfully called createShapes');
+      // Add the shape via controller
+      console.log('About to apply createShape via controller');
+      controller.applyChange({
+        type: 'createShape',
+        description: 'Create transcription note',
+        shape: noteShape,
+      });
+      console.log('Successfully applied createShape');
       
-      // Verify the shape was created
-      const createdShape = editor.getShape(id);
-      console.log('Shape created verification:', createdShape);
+      // Store reference to this note for the participant
+      participantNoteRefs.set(entry.participantIdentity, id);
+      console.log('Stored note ID for participant:', entry.participantIdentity);
       
     } catch (error) {
-      console.error('Error adding transcription to canvas:', error);
+      console.error('Error creating/updating note shape:', error);
       if (error instanceof Error) {
         console.error('Error message:', error.message);
         console.error('Error stack:', error.stack);
       }
     }
-  }, []);
+  }, [addTranscriptLine]);
 
   // Memoize publishData function to reduce dependency changes
   const publishData = useCallback((data: string, topic: string) => {
-    if (!localParticipant) return;
+    if (!localParticipant || !roomContext) return;
     
     try {
+      // Check connection state before publishing
+      const room = roomContext as Room;
+      if (room.state !== ConnectionState.Connected) {
+        console.warn('Cannot publish data: room is not connected. Current state:', 
+          room.state);
+        return;
+      }
+      
       // Convert string to Uint8Array for LiveKit's publishData
       const jsonString = JSON.stringify({ topic, data });
       const encoder = new TextEncoder();
@@ -296,12 +382,20 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
     } catch (error) {
       console.error('Error publishing data:', error);
     }
-  }, [localParticipant]);
+  }, [localParticipant, roomContext]);
 
   // Store editor reference and handle changes
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleMount = useCallback((editor: any) => {
     editorRef.current = editor;
+    
+    // Instantiate whiteboard controller
+    controllerRef.current = new WhiteboardController(editor);
+    
+    // Expose controller globally for agents
+    if (typeof window !== 'undefined') {
+      (window as any).__whiteboardController = controllerRef.current;
+    }
     
     // Add a watermark "PRESENT" with very low opacity
     try {
@@ -317,12 +411,11 @@ const CollaborativeBoard = memo(function CollaborativeBoard({ roomId }: Collabor
           x: viewport.center.x - 300, // Better horizontal centering for large text
           y: viewport.center.y - 80,  // Better vertical centering for large text
           props: {
-            text: 'PRESENT',
+            richText: toRichText('PRESENT'),
             color: 'black',
             size: 'xl',
             font: 'draw',
-            align: 'middle',
-            opacity: 1.0, // Full opacity to ensure visibility
+            textAlign: 'middle',
             scale: 5,     // Large size
           }
         }]);

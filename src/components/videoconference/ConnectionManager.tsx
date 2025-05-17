@@ -1,3 +1,5 @@
+"use client";
+
 import { useCallback, useState, useRef, useEffect } from 'react';
 import { Room, RoomEvent, ConnectionState } from 'livekit-client';
 import { useVideoConferenceContext } from '@/contexts/VideoConferenceContext';

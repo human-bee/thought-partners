@@ -1,7 +1,10 @@
+"use client";
+
 import { useState, useEffect, useCallback } from 'react';
 import { useRoomContext } from '@livekit/components-react';
-import { DataPacket_Kind, DataPublishOptions } from 'livekit-client';
+import { DataPacket_Kind, DataPublishOptions, ConnectionState } from 'livekit-client';
 import { Editor } from '@tldraw/editor';
+import { useTranscriptStore } from '@/contexts/TranscriptStore';
 
 // Add global window type augmentation
 declare global {
@@ -22,6 +25,7 @@ export function useSpeechRecognition(): SpeechRecognitionHook {
   const [recognition, setRecognition] = useState<SpeechRecognition | null>(null);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { addLine: addTranscriptLine } = useTranscriptStore();
 
   useEffect(() => {
     if (!window.SpeechRecognition && !window.webkitSpeechRecognition) {
@@ -77,6 +81,13 @@ export function useSpeechRecognition(): SpeechRecognitionHook {
           // Send the final transcript
           if (room?.localParticipant && finalTranscript !== '') {
             try {
+              // Check room connection state before attempting to publish
+              if (room.state !== ConnectionState.Connected) {
+                console.warn('Cannot publish transcription data: room is not connected. Current state:',
+                  ConnectionState[room.state] || room.state);
+                return;
+              }
+              
               // Create the inner data object
               const transcriptionData = {
                 type: 'transcription',
@@ -112,6 +123,18 @@ export function useSpeechRecognition(): SpeechRecognitionHook {
               
               room.localParticipant.publishData(data, options);
               console.log('Transcription data published successfully');
+              
+              // Immediately push to TranscriptStore locally so devs/agents can see it without waiting for round-trip.
+              try {
+                addTranscriptLine({
+                  authorId: room.localParticipant.identity,
+                  authorName: room.localParticipant.identity,
+                  text: finalTranscript,
+                  timestamp: new Date(),
+                });
+              } catch (e) {
+                console.warn('Failed to add local transcript line:', e);
+              }
               
               // Direct test to verify editor is working
               if (window.__editorInstance) {
@@ -159,7 +182,7 @@ export function useSpeechRecognition(): SpeechRecognitionHook {
         }
       }
     };
-  }, [room, isTranscribing]);
+  }, [room, isTranscribing, addTranscriptLine]);
 
   const startTranscription = useCallback(() => {
     if (recognition) {

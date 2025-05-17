@@ -1,3 +1,5 @@
+"use client";
+
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { Room, RoomOptions, RoomEvent, VideoPresets } from 'livekit-client';
 import { LiveKitRoom } from '@livekit/components-react';
