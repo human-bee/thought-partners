@@ -1,0 +1,87 @@
+<context>
+# Overview  
+Thought Partners is a collaborative whiteboard and transcription tool built on Next.js, LiveKit, and Tldraw. Over time, the codebase has accumulated technical debt, redundant logic, and vestigial development/test code. This project aims to systematically reduce technical debt, consolidate duplicate logic, and optimize the codebase for maintainability and future development, while preserving all core collaborative, video, and transcription features. The PRD incorporates expert code audit recommendations, deep technical analysis, and direct feedback from the Tldraw team.
+
+# Core Features  
+- **Collaborative Infinite Whiteboard**: Real-time, multi-user canvas using Tldraw, supporting drawing, sticky notes, and (planned) image/embed shapes.
+- **LiveKit Video/Audio Conferencing**: WebRTC-based video/audio rooms with token-based authentication and robust reconnection logic.
+- **Real-Time Transcription**: Speech-to-text using the Web Speech API, with transcripts rendered as sticky notes on the canvas and broadcast to all participants.
+- **AI Agent Framework (Planned/Stubbed)**: Placeholder for future LLM-powered agent participants, currently non-functional.
+- **Optimized, Clean Codebase**: Remove dead code, consolidate duplicate logic, and ensure only production-ready features remain.
+
+# User Experience  
+- **Personas**: Remote teams, educators, and collaborators needing a shared visual/audio workspace.
+- **Key Flows**: Join a room, enable video/audio, draw and add notes, start/stop transcription, see live transcripts on the board.
+- **UI/UX**: Minimal, intuitive interface. Dev/test tools and debug panels are hidden from production users. All controls for video/audio and transcription are easily accessible.
+
+</context>
+<PRD>
+# Technical Architecture  
+- **System Components**:
+  - Next.js 13+ App Router frontend
+  - Tldraw-based CollaborativeBoard (core canvas)
+  - LiveKit React SDK for video/audio
+  - API endpoints for token generation (to be consolidated)
+  - Web Speech API for transcription
+- **Data Models**:
+  - Tldraw shapes (including sticky notes, images, embeds)
+  - LiveKit participant/session state
+  - Transcript message format (broadcast via LiveKit data channel)
+- **APIs & Integrations**:
+  - LiveKit token API (consolidate to a single endpoint)
+  - (Planned) LLM/AI agent integration (currently stubbed)
+- **Infrastructure**:
+  - Hosted on Vercel or similar
+  - Environment variables for LiveKit, API keys, etc.
+
+# Development Roadmap  
+**Phase 1: Audit & Analysis**
+- Inventory all token endpoints, transcription canvases, logger utilities, devtools, and test harnesses
+- Identify dead code, duplicate logic, and vestigial files
+
+**Phase 2: Consolidation & Refactoring**
+- Merge token endpoint logic into a single API route
+- Unify logger utilities and transcription canvas implementations
+- Remove or relocate devtools/test harnesses to a dedicated directory
+- Remove all debug/test UI from production code
+- Remove all commented-out, placeholder, and unused code (especially around AI agent stubs)
+- Standardize import paths and clean up mocks/test utilities
+
+**Phase 3: Feature Optimization**
+- Ensure all core features (canvas sync, video/audio, transcription) remain fully functional
+- Integrate Tldraw dev advice:
+  - Use editor API directly for shape creation (no 'apply changes' indirection)
+  - For images, create Image shapes (not Note shapes)
+  - For YouTube, create Embed shapes (not Note shapes)
+- Remove all redundant state management and verbose error handling
+- Simplify component structure and state flows
+
+**Phase 4: Testing & Validation**
+- Run all unit and integration tests after each major change
+- Manually verify core user flows (join, draw, video, transcription)
+- Use static analysis (tsc, ESLint, depcheck) to catch unused code/dependencies
+- Document any edge cases or issues
+
+# Logical Dependency Chain
+- Audit and analysis must precede any code removal
+- Consolidate and refactor only after confirming usage
+- Move devtools/test harnesses before deletion to preserve useful tools
+- Remove vestigial/unused files only after all dependencies and usage are clear
+- Document core vs. devtools files for future maintainers
+
+# Risks and Mitigations  
+- **Risk**: Removing code that is still needed for production features
+  - **Mitigation**: Use static analysis, test coverage, and manual verification after each change
+- **Risk**: Breaking token or transcription flows during consolidation
+  - **Mitigation**: Refactor incrementally, test after each step, and ensure all endpoints are covered
+- **Risk**: Loss of useful devtools for future debugging
+  - **Mitigation**: Move devtools to a dedicated directory, not delete outright
+- **Risk**: Over-removal of AI agent stubs if future work is planned
+  - **Mitigation**: Document removed features and rationale; keep stubs in a branch or as commented documentation if needed
+
+# Appendix  
+- See @cleanup-todo.mdc for prioritized cleanup checklist
+- See "Devin Ai Agent tech debt analysis" and "o3 tech debt deep research analysis" for detailed technical rationale and step-by-step refactoring plan
+- See Tldraw dev advice for best practices on shape creation and integration
+- All changes must be validated by running the full test suite and manual user flow checks
+</PRD> 

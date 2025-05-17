@@ -64,7 +64,7 @@ export default function ClientOnlyWhiteboardRoom({ roomId }: { roomId: string })
     }
 
     const handleUserInteraction = () => {
-      if (audioContext && audioContext.state !== 'closed' && audioContext.state === 'suspended') {
+      if (audioContext && audioContext.state === 'suspended') {
         audioContext.resume().catch(console.error);
       }
     };
