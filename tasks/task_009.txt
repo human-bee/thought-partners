@@ -1,0 +1,43 @@
+# Task ID: 9
+# Title: Optimize Tldraw Shape Creation
+# Status: pending
+# Dependencies: 2
+# Priority: high
+# Description: Refactor shape creation to use Tldraw editor API directly and follow best practices.
+# Details:
+Update shape creation logic to use Tldraw editor API directly (no 'apply changes' indirection). For images, create Image shapes (not Note shapes). For YouTube, create Embed shapes (not Note shapes). Remove redundant state management.
+
+# Test Strategy:
+Test shape creation and rendering. Verify image and embed shapes are created correctly.
+
+# Subtasks:
+## 1. Implement Image Shapes for Local Images [pending]
+### Dependencies: None
+### Description: Replace markdown-based image insertion with Tldraw Image shape creation using local asset records, following the Tldraw local-images example.
+### Details:
+<info added on 2025-05-17T07:54:33.034Z>
+<details><timestamp>2025-05-17T07:54:28Z</timestamp><content>To implement true Tldraw Image shapes for local images, the following steps will be taken: First, after receiving an image URL, the agent will fetch the image blob using `const blob = await fetch(imageUrl).then(r => r.blob())`. Next, the blob will be uploaded to Tldraw’s asset store via `const asset = await controller.editor.uploadAsset(blob);`, which returns an object with `src` and `meta` properties. The shape object will then be updated to use `type: 'image'` and `props: { asset: asset.src, w: asset.meta.width, h: asset.meta.height }`, replacing the previous markdown-based `note` shape. The `toRichText` markdown code for images will be removed, and the rest of the controller and transcript logic will remain unchanged. The shape ID generation will be kept as is, and the blob fetch and upload code will be inserted before the shape definition block. This ensures images are rendered as native Tldraw Image shapes, backed by the asset store.</content></details>
+</info added on 2025-05-17T07:54:33.034Z>
+
+## 2. Implement Embed Shapes for YouTube Embeds [pending]
+### Dependencies: None
+### Description: Replace Note-based YouTube link insertion with Tldraw Embed shape creation, setting the url prop for embedded content.
+### Details:
+
+## 3. Notes from tldraw developer
+### Dependencies: None
+### Description: Refactor shape creation to use Tldraw editor API directly instead of applyChanges indirection.
+### Details:
+Update the shape creation logic in both ImageGenAgent and YoutubeClipAgent to use the Tldraw editor API directly. This involves:
+1. Using editor.createShape() instead of controller.applyChange()
+2. Removing the 'apply changes' indirection layer
+3. Maintaining the same shape properties and positioning logic
+4. Keeping the transcript and asset upload functionality unchanged
+
+The key changes will be:
+- Replace controller.applyChange({ type: 'createShape', ... }) with editor.createShape({ ... })
+- Remove the 'type' and 'description' fields from shape creation
+- Keep the same shape ID generation and positioning logic
+- Maintain existing asset upload and transcript functionality
+
+This simplifies the code by removing an unnecessary abstraction layer while maintaining the same functionality.

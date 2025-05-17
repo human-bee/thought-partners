@@ -1,0 +1,61 @@
+# Task ID: 4
+# Title: Unify Logger Utilities
+# Status: done
+# Dependencies: 2, 3
+# Priority: high
+# Description: Consolidate all logger utilities into a single, reusable module, standardizing on src/components/videoconference/VideoLogger.ts as the canonical implementation.
+# Details:
+Identify all logging utilities. Refactor all logger usage to src/components/videoconference/VideoLogger.ts. Remove src/utils/VideoLogger.ts after refactor. Update all imports and references to use the unified logger. Implement configurable log levels and structured JSON logging for improved readability and machine parsing. After changes, run tests and re-run ts-prune to ensure no orphaned code remains.
+
+# Test Strategy:
+Test logging in different environments. Verify logs are captured and formatted correctly in JSON. Ensure proper log levels are used based on the environment (debug/trace for testing, info/error for production). After refactor, run ts-prune to confirm no unused logger code remains.
+
+# Subtasks:
+## 1. Select Primary Logger Utility [done]
+### Dependencies: None
+### Description: Decide whether to keep src/utils/VideoLogger.ts or src/components/videoconference/VideoLogger.ts as the canonical logger module.
+### Details:
+Per audit, src/components/videoconference/VideoLogger.ts is the preferred logger utility. All logger usage should be consolidated to this implementation.
+<info added on 2025-05-17T05:13:32.563Z>
+<update><timestamp>2025-05-17T05:13:27Z</timestamp><content>Per audit, src/components/videoconference/VideoLogger.ts is the preferred logger utility. All logger usage should be consolidated to this implementation. The legacy logger (src/utils/VideoLogger.ts) is class-based and lacks dynamic log level support and environment-based configuration, which are present in the preferred logger. An inventory of logger usages reveals that only src/utils/livekit-diagnostics.ts imports VideoLogger and uses a 'log' method (VideoLogger.log), which does not exist in either logger implementation; this usage is legacy and should be replaced with log.info or similar. There are no unique features in the legacy logger that must be ported, as all log levels are covered by the new logger. The plan is to standardize on src/components/videoconference/VideoLogger.ts as the canonical logger, update src/utils/livekit-diagnostics.ts to use the new 'log' utility, and remove src/utils/VideoLogger.ts after migration. No blockers have been identified; proceed with refactor and migration.</content></update>
+</info added on 2025-05-17T05:13:32.563Z>
+
+## 2. Refactor Imports to Use Chosen Logger [done]
+### Dependencies: None
+### Description: Update all code imports to use the selected logger module consistently across the codebase.
+### Details:
+Replace all imports of src/utils/VideoLogger.ts with src/components/videoconference/VideoLogger.ts. Ensure all logger usage is routed through the canonical logger.
+
+## 3. Remove Unused Logger File [done]
+### Dependencies: None
+### Description: Delete the unused logger utility file after refactoring imports.
+### Details:
+Remove src/utils/VideoLogger.ts after all references have been updated. Confirm removal with ts-prune to ensure no orphaned references remain.
+
+## 4. Implement Configurable Log Levels [done]
+### Dependencies: 4.1
+### Description: Add support for different log levels (debug, info, warn, error) that can be configured via environment variables.
+### Details:
+Use environment variables to control log level granularity based on the environment (e.g., DEBUG/TRACE for development, INFO/ERROR for production). Ensure the logger implementation supports dynamic log level configuration.
+
+## 5. Implement Structured JSON Logging [done]
+### Dependencies: 4.1
+### Description: Configure the logger to output structured JSON logs with consistent schema.
+### Details:
+Include timestamp, log level, and descriptive messages in each log entry. Ensure the format is both human-readable and machine-parsable. Follow best practices for structured logging as outlined in audit and industry guides.
+
+## 6. Add Descriptive Logging Guidelines [done]
+### Dependencies: 4.4, 4.5
+### Description: Create documentation for how to write effective log messages throughout the codebase.
+### Details:
+Include examples of good vs. poor log messages and guidance on when to use different log levels.
+
+## 7. Run Tests and ts-prune After Refactor [done]
+### Dependencies: 4.2, 4.3
+### Description: After consolidating logger usage and removing unused files, run the full test suite and ts-prune to ensure no orphaned code remains.
+### Details:
+Verify all tests pass and ts-prune reports no unused logger code. Address any issues found.
+<info added on 2025-05-17T05:29:16.963Z>
+Manual validation and structured logging smoke tests were executed in the browser, confirming that all logs are consistently formatted as JSON with required fields (timestamp, level, message) and optional metadata. The full test suite was run to verify all functionality post-refactor. ts-prune was used to ensure no orphaned logger exports remain. No issues were detected in log formatting, test coverage, or codebase cleanliness. Logs adhere to best practices for structured logging, including consistent data types and clear, informative messages. All tests passed, and ts-prune reported no unused logger code. This ensures the refactor maintains code quality and logging reliability.
+</info added on 2025-05-17T05:29:16.963Z>
+

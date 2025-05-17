@@ -1,0 +1,31 @@
+# Task ID: 13
+# Title: Update and Maintain Documentation
+# Status: pending
+# Dependencies: 2
+# Priority: medium
+# Description: Update and maintain comprehensive documentation for the codebase and APIs.
+# Details:
+Document code design, architecture, APIs, and known issues. Ensure documentation is up-to-date and accessible to new team members.
+
+# Test Strategy:
+Review documentation for accuracy and completeness. Verify new team members can onboard using the docs.
+
+# Subtasks:
+## 1. Document Core vs. Devtools Files [pending]
+### Dependencies: None
+### Description: Add documentation listing which files are core application logic versus devtools/test-only code for future maintainers.
+### Details:
+
+
+## 2. Update README with Cleanup Details [pending]
+### Dependencies: None
+### Description: Document the new architecture, removed features, and updated usage instructions in the README.
+### Details:
+
+
+## 3. Revise Environment Variable Documentation [pending]
+### Dependencies: None
+### Description: Remove references to deprecated AI agent and Deepgram variables, updating .env.example accordingly.
+### Details:
+
+

@@ -1,0 +1,31 @@
+# Task ID: 11
+# Title: Automate Unit and Integration Testing
+# Status: pending
+# Dependencies: 1
+# Priority: high
+# Description: Establish a robust automated testing framework for unit and integration tests.
+# Details:
+Set up Jest, React Testing Library, and integration test suites. Automate test execution in CI/CD. Ensure all core features are covered by tests.
+
+# Test Strategy:
+Run automated tests after each change. Monitor test coverage and regressions.
+
+# Subtasks:
+## 1. Set up Static Analysis Tools [pending]
+### Dependencies: None
+### Description: Integrate ESLint, TypeScript compiler checks, and depcheck into CI pipeline; configure and run them to catch unused code, unused imports, and redundant dependencies.
+### Details:
+
+
+## 2. Add End-to-End Tests with Playwright [pending]
+### Dependencies: None
+### Description: Create automated E2E tests using Playwright or Puppeteer to validate core flows: join, draw, video, transcription.
+### Details:
+
+
+## 3. Integrate Code Coverage for Dead Code Removal [pending]
+### Dependencies: None
+### Description: Generate test coverage reports and identify 0% coverage code paths for removal.
+### Details:
+
+

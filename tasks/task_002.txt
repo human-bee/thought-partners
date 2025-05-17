@@ -1,0 +1,168 @@
+# Task ID: 2
+# Title: Inventory and Audit Codebase
+# Status: done
+# Dependencies: 1
+# Priority: highest
+# Description: Conduct a comprehensive audit of the codebase to identify dead code, duplicate logic, vestigial files, and ensure all dependencies and utilities are properly categorized before any code removal or refactoring.
+# Details:
+This is the first task to complete after project setup and must be prioritized above all others. Use static analysis tools (tsc, ESLint, depcheck) to scan for unused code and dependencies. Manually review code for redundant logic, outdated test/dev utilities, and commented-out code. Document all findings in a cleanup checklist. No code should be removed or refactored until all audit subtasks are completed and findings are reviewed.
+
+# Test Strategy:
+Run static analysis tools and review output. Manually verify findings with codebase walkthrough. Confirm that all audit subtasks are completed and findings are documented before proceeding to any code removal or refactoring.
+
+# Subtasks:
+## 1. Audit Token Endpoints [done]
+### Dependencies: None
+### Description: Review all token-related endpoints (get-token, livekit, refresh-token, create-agent) and identify which are used in production versus legacy/experimental.
+### Details:
+<info added on 2025-05-17T01:47:15.515Z>
+<audit-update timestamp="2025-05-17T01:47:09Z">
+  <summary>
+    <p>Token endpoint audit completed for src/app/api/. Identified four key endpoints: get-token, livekit, refresh-token, and create-agent. All endpoints use LIVEKIT_API_KEY and LIVEKIT_API_SECRET from environment variables and generate JWT tokens with various grants and permissions.</p>
+  </summary>
+  <findings>
+    <p><strong>get-token/route.ts</strong>: Canonical, production-ready endpoint for LiveKit token generation. Supports both GET and POST, used for backward compatibility and new flows.</p>
+    <p><strong>livekit/route.ts</strong>: Alternate implementation for LiveKit token generation. Appears to be legacy or used for specific flows; actual usage in client code needs verification.</p>
+    <p><strong>refresh-token/route.ts</strong>: Generates new tokens for existing identities/rooms, supporting token refresh flows. Usage in client code needs confirmation.</p>
+    <p><strong>create-agent/route.ts</strong>: Experimental/dev-only endpoint. Contains stubs and references to unimplemented features (e.g., Deepgram integration). Not used in production.</p>
+  </findings>
+  <next-steps>
+    <p>Confirm actual usage of livekit, refresh-token, and create-agent endpoints in client code. Prepare a cleanup/consolidation plan after full audit. No code changes made yet; awaiting further audit steps before refactor/removal.</p>
+  </next-steps>
+</audit-update>
+</info added on 2025-05-17T01:47:15.515Z>
+
+## 2. Audit Transcription Canvas & Controls [done]
+### Dependencies: None
+### Description: Check usage of src/components/TranscriptionCanvas.tsx, src/components/transcription/TranscriptionCanvas.tsx, and src/components/transcription/TestControls.tsx to determine which are production vs dev/test.
+### Details:
+<info added on 2025-05-17T01:49:17.983Z>
+<audit_update timestamp="2025-05-17T01:49:11Z">
+  <summary>Implementation Plan and Findings for Audit Transcription Canvas & Controls</summary>
+  <findings>
+    <finding>
+      <file>src/components/transcription/TranscriptionCanvas.tsx</file>
+      <status>Production-ready</status>
+      <notes>Modern implementation, handles TLDraw editor. By default, does NOT create sticky notes or process transcription (flags set to false). CollaborativeBoard is the single source of truth for transcription handling. Primarily used for debugging/overlay purposes.</notes>
+    </finding>
+    <finding>
+      <file>src/components/TranscriptionCanvas.tsx</file>
+      <status>Legacy/Dev/Test</status>
+      <notes>Contains TestControls for creating test notes and shapes. Not used in production; intended for manual testing and development.</notes>
+    </finding>
+    <finding>
+      <file>src/components/transcription/TestControls.tsx</file>
+      <status>Dev/Test-only</status>
+      <notes>Utility for creating test notes and shapes on the canvas. Not used in production code.</notes>
+    </finding>
+  </findings>
+  <assessment>
+    <recommendation>Only src/components/transcription/TranscriptionCanvas.tsx should remain for production. Other files are vestigial/dev-only and can be removed after confirming no production imports. TestControls is safe to remove or relocate to devtools after audit.</recommendation>
+  </assessment>
+  <next_steps>
+    <step>Confirm actual usage/imports of both TranscriptionCanvas files and TestControls in production code.</step>
+    <step>Prepare a cleanup plan after full audit.</step>
+  </next_steps>
+</audit_update>
+</info added on 2025-05-17T01:49:17.983Z>
+
+## 3. Logger Utility Review [done]
+### Dependencies: None
+### Description: Compare src/components/videoconference/VideoLogger.ts and src/utils/VideoLogger.ts for duplication and usage, and decide on a single implementation.
+### Details:
+<info added on 2025-05-17T01:51:35.604Z>
+<log><timestamp>2025-05-17T01:51:32Z</timestamp><entry>Two VideoLogger implementations have been identified: src/utils/VideoLogger.ts (class-based, static methods, hardcoded prefix, environment check via process.env.NODE_ENV) and src/components/videoconference/VideoLogger.ts (object-based, configurable log levels, dynamic verbosity via NEXT_PUBLIC_LOG_LEVEL, environment-aware). Initial assessment indicates the latter is more flexible and production-ready, supporting dynamic log levels and environment-based configuration. The next steps are to audit actual usage/imports of both utilities in production code, recommend consolidation on the more flexible implementation, and prepare a cleanup plan after full audit. No code changes have been made yet; awaiting further audit steps before refactor/removal.</entry></log>
+</info added on 2025-05-17T01:51:35.604Z>
+
+## 4. Devtools & Test Harnesses Inventory [done]
+### Dependencies: None
+### Description: List all dev/test-only files (LiveKitTest.tsx, TLDrawDebugger.tsx, tldraw-debug.ts, test-livekit/page.tsx) and confirm they are not imported in production.
+### Details:
+<info added on 2025-05-17T01:52:40.031Z>
+<update timestamp="2025-05-17T01:52:33Z">
+<p>Inventory of devtools and test harnesses completed. The following files have been identified as exclusively for development and testing purposes:</p>
+<ul>
+<li><code>src/components/LiveKitTest.tsx</code>: Component for testing LiveKit authentication, video, and audio. Not used in production.</li>
+<li><code>src/components/TLDrawDebugger.tsx</code>: Devtool for TLDraw diagnostics and debugging. Not used in production.</li>
+<li><code>src/utils/tldraw-debug.ts</code>: Utility for TLDraw diagnostics, used by TLDrawDebugger. Not used in production.</li>
+<li><code>src/app/test-livekit/page.tsx</code>: Dev/test-only page for testing webcam and LiveKit integration. Not used in production.</li>
+<li><code>src/utils/test-livekit-flow.ts</code>: Utility for LiveKit test flows, used by LiveKitTest. Not used in production.</li>
+</ul>
+<p>Initial assessment confirms that none of these files are imported in production code. They are candidates for relocation to a dedicated devtools directory or removal after a full audit. Next steps include:</p>
+<ul>
+<li>Double-checking for any accidental imports in production code.</li>
+<li>Preparing a relocation or removal plan following the full audit.</li>
+</ul>
+<p>No code changes have been made at this stage. Awaiting further audit steps before proceeding with refactoring or removal.</p>
+</update>
+</info added on 2025-05-17T01:52:40.031Z>
+
+## 5. Check Import Path Consistency [done]
+### Dependencies: None
+### Description: Standardize import paths in test and code files to match actual file casing (e.g., videoconference vs VideoConference) to avoid case-sensitivity issues.
+### Details:
+<info added on 2025-05-17T01:53:16.239Z>
+<audit_update timestamp="2025-05-17T01:53:11Z">
+  <summary>Import Path Consistency Audit</summary>
+  <findings>
+    <finding>All imports of VideoConference components use consistent casing (either './videoconference/VideoConference' or '@/components/videoconference/VideoConference').</finding>
+    <finding>No evidence of case-sensitivity issues or mismatched import paths in production or test code.</finding>
+    <finding>All logger and utility imports for videoconference components are also consistent.</finding>
+  </findings>
+  <recommendations>
+    <recommendation>No action required for import path consistency at this time.</recommendation>
+    <recommendation>Continue with the next audit subtask.</recommendation>
+  </recommendations>
+  <references>
+    <reference>Best practices for absolute imports and consistent casing are followed, as recommended in codebase organization guides.</reference>
+    <reference>No code changes made; awaiting further audit steps before any refactor or removal.</reference>
+  </references>
+</audit_update>
+</info added on 2025-05-17T01:53:16.239Z>
+
+## 6. Review Mocks & Test Utilities [done]
+### Dependencies: None
+### Description: Ensure files in src/mocks/ and src/tests/ are not imported in production code.
+### Details:
+<info added on 2025-05-17T01:54:29.099Z>
+<audit_update timestamp="2025-05-17T01:54:23Z">
+  <summary>Mock and Test Utility Audit Findings</summary>
+  <locations>
+    <mocks>src/mocks/fileMock.js, livekit-client.js, styleMock.js</mocks>
+    <utilities>src/tests/common/mocks.ts, test-utils.tsx</utilities>
+    <test_data>src/tests/videoconference/fixtures/participantData.json, roomData.json, deviceData.json</test_data>
+    <test_files>src/tests/videoconference/setup.ts, test files, manual-test-script.md, README.md</test_files>
+  </locations>
+  <findings>
+    <finding>All mocks and test utilities are only imported in test files (src/tests/), not in production code.</finding>
+    <finding>No evidence of accidental imports in src/ (production) code.</finding>
+  </findings>
+  <next_steps>
+    <step>No action required for mocks/test utilities at this time.</step>
+    <step>Continue with the next audit subtask.</step>
+  </next_steps>
+</audit_update>
+</info added on 2025-05-17T01:54:29.099Z>
+
+## 7. Generate Module Dependency Graph [done]
+### Dependencies: None
+### Description: Use Madge to generate a module dependency graph for the codebase to identify orphaned modules and circular dependencies.
+### Details:
+<info added on 2025-05-17T01:56:25.670Z>
+<update><timestamp>2025-05-17T01:56:21Z</timestamp><content>Madge was executed on the src directory to generate a text-based module dependency tree. Only 5 files were processed: mocks/fileMock.js, mocks/livekit-client.js, mocks/styleMock.js, scripts/debug-token.js, scripts/test-token.js. No circular dependencies or orphaned modules were detected in the processed files. The low file count indicates Madge may not have traversed all TypeScript/Next.js files, likely due to configuration or file extension issues. If a more comprehensive dependency graph is required, consider adjusting Madge's configuration to include .ts/.tsx files or evaluate alternative tools such as Skott or dependency-cruiser. No immediate code changes are recommended until further audit steps are completed.</content></update>
+</info added on 2025-05-17T01:56:25.670Z>
+<info added on 2025-05-17T01:58:08.925Z>
+<info added on 2025-05-17T01:56:25.670Z>
+<update><timestamp>2025-05-17T01:56:21Z</timestamp><content>Madge was executed on the src directory to generate a text-based module dependency tree. Only 5 files were processed: mocks/fileMock.js, mocks/livekit-client.js, mocks/styleMock.js, scripts/debug-token.js, scripts/test-token.js. No circular dependencies or orphaned modules were detected in the processed files. The low file count indicates Madge may not have traversed all TypeScript/Next.js files, likely due to configuration or file extension issues. If a more comprehensive dependency graph is required, consider adjusting Madge's configuration to include .ts/.tsx files or evaluate alternative tools such as Skott or dependency-cruiser. No immediate code changes are recommended until further audit steps are completed.</content></update>
+<update><timestamp>2025-05-17T01:58:03Z</timestamp><content>Madge was re-run with TypeScript extensions enabled and test/mocks directories excluded. This time, 75 files were processed, including all main app, component, context, controller, and utility files. No circular dependencies or orphaned modules were reported. The module structure is healthy and no major dependency issues were found. The audit can proceed with confidence in the current module organization. No code changes have been made yet. Awaiting further audit steps before considering any refactor or removal actions.</content></update>
+</info added on 2025-05-17T01:56:25.670Z>
+</info added on 2025-05-17T01:58:08.925Z>
+
+## 8. Identify Unused Exports via ts-prune [done]
+### Dependencies: None
+### Description: Run ts-prune to detect exported functions and types that are not used anywhere, listing files safe to remove.
+### Details:
+<info added on 2025-05-17T01:58:37.821Z>
+<update><timestamp>2025-05-17T01:58:33Z</timestamp><content>ts-prune was executed to scan the codebase for unused exports. The scan identified several exported functions, components, and types that are not imported or used anywhere in the project. Examples include LiveKitTest, PreJoin (default and JoinOptions), TLDrawDebugger, TestControls, TranscriptionCanvas, useIsClient, INSTANCE_MARKER, and various default exports in Next.js page files. Many of these exports are related to development, testing, or legacy features, and some are only referenced within their own module. These findings are candidates for removal or refactoring during the upcoming cleanup phase. No code changes have been made yet; further audit steps are required before proceeding with refactoring or removal. This step ensures that the codebase remains lean and maintainable by eliminating dead code and unused exports, which can otherwise increase bundle size and complicate maintenance.</content></update>
+</info added on 2025-05-17T01:58:37.821Z>
+

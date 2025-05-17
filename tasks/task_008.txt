@@ -1,0 +1,43 @@
+# Task ID: 8
+# Title: Standardize Import Paths and Clean Up Mocks
+# Status: deferred
+# Dependencies: 2
+# Priority: medium
+# Description: Standardize all import paths and clean up mock/test utilities based on findings from the previous audit (Task 2).
+# Details:
+This task involves standardizing import paths across the codebase and organizing mock/test utilities to ensure ongoing consistency and cleanliness. No import path or mock utility issues were found in production code, but this task will establish and maintain best practices.
+
+# Test Strategy:
+Verify all imports resolve correctly. Test mock utilities in isolation. Run the full test suite and manually verify that all mocks/utilities are only used in test/dev code.
+
+# Subtasks:
+## 8.1. Standardize Import Paths [pending]
+### Dependencies: None
+### Description: Review and standardize all import statements for consistency across the codebase.
+### Details:
+Review all import statements for consistency (absolute vs. relative, casing). Update any outliers to match the project's preferred style (absolute imports with '@/'). Consider using native JavaScript import solutions rather than path aliases where appropriate.
+
+## 8.2. Clean Up Mocks/Test Utilities [pending]
+### Dependencies: None
+### Description: Organize and clean up mock/test utilities.
+### Details:
+Move dev/test-only files to a dedicated directory (e.g., src/devtools/ or src/tests/). Remove any unused mocks/utilities identified by ts-prune and the audit. Ensure no production code imports from these directories.
+
+## 8.3. Update References [pending]
+### Dependencies: None
+### Description: Update all references to use new paths.
+### Details:
+Refactor import paths in test files if files are moved. Run tests to verify all imports resolve and mocks/utilities work in isolation.
+
+## 8.4. Evaluate Import Maps for Browser Code [pending]
+### Dependencies: None
+### Description: Consider implementing import maps for browser-facing code.
+### Details:
+For browser-facing code, evaluate the use of import maps as a native alternative to path aliases. Import maps are supported by all major browsers and provide a standardized way to map import specifiers to URLs.
+
+## 8.5. Verification and Documentation [pending]
+### Dependencies: None
+### Description: Verify all changes and document import standards.
+### Details:
+Run the full test suite to ensure all imports resolve correctly. Manually verify that all mocks/utilities are only used in test/dev code. Document the standardized import approach for future development.
+

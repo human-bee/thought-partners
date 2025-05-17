@@ -1,0 +1,11 @@
+# Task ID: 1
+# Title: Setup Project Repository and CI/CD Pipeline
+# Status: done
+# Dependencies: None
+# Priority: high
+# Description: Initialize the Next.js project repository with App Router, configure Vercel hosting, and set up CI/CD for automated builds, tests, and deployments.
+# Details:
+Clone or initialize a new Next.js 13+ project. Configure Vercel or similar hosting. Set up GitHub Actions or equivalent for CI/CD. Ensure environment variables for LiveKit, API keys, etc. are managed securely.
+
+# Test Strategy:
+Verify CI/CD pipeline runs on push, builds successfully, and deploys to staging. Test environment variable injection.

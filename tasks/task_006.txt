@@ -1,0 +1,115 @@
+# Task ID: 6
+# Title: Relocate Devtools and Test Harnesses
+# Status: done
+# Dependencies: 2
+# Priority: medium
+# Description: Remove all devtools and test harnesses from the codebase as they are unused in production and not needed for MVP. This task should be completed after the core code consolidation and audit are finished.
+# Details:
+After the core codebase has been consolidated and audited, identify all devtools, debug panels, and test utilities for removal. Instead of relocating these files to a dedicated directory, we will completely remove them from the codebase to reduce bundle size and simplify maintenance. Files identified during the audit that need to be removed include: src/components/LiveKitTest.tsx, src/components/TLDrawDebugger.tsx, src/utils/tldraw-debug.ts, src/app/test-livekit/page.tsx, src/utils/test-livekit-flow.ts, src/app/livekit-debug/page.tsx. This approach will help keep the codebase clean and focused on production functionality.
+
+# Test Strategy:
+After core code consolidation and audit, verify that all devtools have been completely removed from the codebase. Run the application in both development and production modes to ensure no devtools UI or code is present in either environment. Use tools like ts-prune to confirm no orphaned imports or references to the removed files remain. Verify that the application functions correctly without these test harnesses and debug tools.
+
+# Subtasks:
+## 1. Move LiveKitTest Component to Devtools [done]
+### Dependencies: None
+### Description: Relocate src/components/LiveKitTest.tsx to a dedicated devtools directory.
+### Details:
+
+
+## 2. Move TLDrawDebugger to Devtools [done]
+### Dependencies: None
+### Description: Move src/components/TLDrawDebugger.tsx to devtools/playground and update imports.
+### Details:
+
+
+## 3. Move tldraw-debug Utility to Devtools [done]
+### Dependencies: None
+### Description: Transfer src/utils/tldraw-debug.ts to devtools and update references.
+### Details:
+
+
+## 4. Move Test-LiveKit Page to Devtools [done]
+### Dependencies: None
+### Description: Relocate src/app/test-livekit/page.tsx to devtools directory and update routes if needed.
+### Details:
+
+
+## 5. Update Imports for Devtools Relocation [done]
+### Dependencies: None
+### Description: Refactor import paths in code and tests to reference the new devtools location for test harness files.
+### Details:
+
+
+## 6. Defer Devtools Relocation Until After Core Refactors [done]
+### Dependencies: None
+### Description: Ensure that all devtools and test harness relocation work is performed only after the core codebase has been consolidated and audited.
+### Details:
+Coordinate with the team to confirm that core refactors and code audit are complete before starting devtools relocation. This ensures no disruption to ongoing core development and avoids unnecessary merge conflicts.
+
+## 7. Move test-livekit-flow.ts to Devtools [done]
+### Dependencies: None
+### Description: Transfer src/utils/test-livekit-flow.ts to devtools directory and update all references.
+### Details:
+This file was identified during the audit as a test utility that should be moved to the dedicated devtools directory.
+
+## 8. Move livekit-debug Page to Devtools [done]
+### Dependencies: None
+### Description: Relocate src/app/livekit-debug/page.tsx to devtools directory and update routes if needed.
+### Details:
+This file was identified during the audit as a debug page that should be moved to the dedicated devtools directory.
+
+## 9. Configure Build System to Exclude Devtools in Production [done]
+### Dependencies: 6.1, 6.2, 6.3, 6.4, 6.5, 6.7, 6.8
+### Description: Update build configuration to exclude devtools from production builds.
+### Details:
+Implement environment-specific configuration to ensure devtools are only included in development builds. This may involve using environment variables (NODE_ENV=production) or specific build flags. For React applications, consider using the 'disable-react-devtools' package in production builds.
+
+## 10. Run ts-prune After Relocation [done]
+### Dependencies: 6.1, 6.2, 6.3, 6.4, 6.5, 6.7, 6.8, 6.9
+### Description: Run ts-prune after all devtools relocations to ensure no orphaned files or imports remain.
+### Details:
+After completing all file relocations and import updates, run ts-prune to identify any orphaned files or imports that may have been missed. Fix any issues found to ensure code cleanliness.
+
+## 11. Update Approach: Remove LiveKitTest Component [done]
+### Dependencies: None
+### Description: Delete src/components/LiveKitTest.tsx instead of relocating it.
+### Details:
+Based on the updated approach, completely remove this file from the codebase as it's unused in production and not needed for MVP. Ensure all imports and references to this file are also removed.
+
+## 12. Update Approach: Remove TLDrawDebugger [done]
+### Dependencies: None
+### Description: Delete src/components/TLDrawDebugger.tsx instead of relocating it.
+### Details:
+Based on the updated approach, completely remove this file from the codebase as it's unused in production and not needed for MVP. Ensure all imports and references to this file are also removed.
+
+## 13. Update Approach: Remove tldraw-debug Utility [done]
+### Dependencies: None
+### Description: Delete src/utils/tldraw-debug.ts instead of relocating it.
+### Details:
+Based on the updated approach, completely remove this file from the codebase as it's unused in production and not needed for MVP. Ensure all imports and references to this file are also removed.
+
+## 14. Update Approach: Remove Test-LiveKit Page [done]
+### Dependencies: None
+### Description: Delete src/app/test-livekit/page.tsx instead of relocating it.
+### Details:
+Based on the updated approach, completely remove this file from the codebase as it's unused in production and not needed for MVP. Ensure all imports and references to this file are also removed.
+
+## 15. Update Approach: Remove test-livekit-flow.ts [done]
+### Dependencies: None
+### Description: Delete src/utils/test-livekit-flow.ts instead of relocating it.
+### Details:
+Based on the updated approach, completely remove this file from the codebase as it's unused in production and not needed for MVP. Ensure all imports and references to this file are also removed.
+
+## 16. Update Approach: Remove livekit-debug Page [done]
+### Dependencies: None
+### Description: Delete src/app/livekit-debug/page.tsx instead of relocating it.
+### Details:
+Based on the updated approach, completely remove this file from the codebase as it's unused in production and not needed for MVP. Ensure all imports and references to this file are also removed.
+
+## 17. Verify No References to Removed Files Remain [done]
+### Dependencies: 6.11, 6.12, 6.13, 6.14, 6.15, 6.16
+### Description: Run ts-prune after removing all devtools files to ensure no references remain.
+### Details:
+After deleting all devtools and test harness files, run ts-prune to identify any orphaned imports or references that may have been missed. Fix any issues found to ensure code cleanliness and prevent runtime errors.
+

@@ -1,0 +1,107 @@
+# Task ID: 7
+# Title: Remove Dead and Unused Code
+# Status: deferred
+# Dependencies: 2, 3, 4, 5
+# Priority: high
+# Description: Remove all commented-out, placeholder, and unused code, especially around AI agent stubs. Only begin this process after the token, logger, and transcription canvas refactors are complete.
+# Details:
+Use static analysis (ts-prune) and manual review to identify dead code. Remove all unused files, commented code, placeholder logic, and unused exports. Document removed features and rationale. This is a key step for reducing bloat before resuming feature work. Do not start code removal until tasks 3, 4, and 5 (token, logger, and transcription canvas refactors) are finished. After each removal, re-run ts-prune to ensure no new orphans remain.
+
+# Test Strategy:
+Run ts-prune for static analysis and conduct manual code review. Verify no regressions in core features. Ensure all tests pass after each code removal. Update imports as needed and re-run tests after changes.
+
+# Subtasks:
+## 1. Remove Unused AI Agent Integration Code [deferred]
+### Dependencies: None
+### Description: Delete commented-out and stub code related to AI agents in api/create-agent and client join form, and remove unused AI SDK dependencies.
+### Details:
+
+
+## 2. Remove VideoConference Component and Context [deferred]
+### Dependencies: None
+### Description: Delete the VideoConference component and related context/hooks if they are not used in the UI, after verifying core media controls.
+### Details:
+
+
+## 3. Remove Dev-Only Debug Pages [deferred]
+### Dependencies: None
+### Description: Delete src/app/livekit-debug/page.tsx and related debug utilities that are not part of production flow.
+### Details:
+
+
+## 4. Remove Unused npm Dependencies via Depcheck [deferred]
+### Dependencies: None
+### Description: Run depcheck to identify unused npm dependencies and remove them from package.json.
+### Details:
+
+
+## 5. Remove Debug Logging Statements [deferred]
+### Dependencies: None
+### Description: Remove all console.log calls and debug state tracking from core components (e.g., CollaborativeBoard, TranscriptionBoard).
+### Details:
+<info added on 2025-05-17T07:09:47.189Z>
+<details><timestamp>2025-05-17T07:09:43Z</timestamp><content>To systematically remove all debug logging statements across the codebase, follow this plan: First, use a grep search for `console.` to identify all files containing logging calls. In each file, delete any standalone `console.log`, `console.warn`, and `console.error` lines. For multi-statement or inline logging calls, refactor or remove as appropriate, ensuring no syntax breaks. After removal, run the full test suite and re-run `ts-prune` to ensure no regressions or orphaned code remain. This approach ensures a clean codebase and prevents accidental exposure of sensitive data in production environments.</content></details>
+</info added on 2025-05-17T07:09:47.189Z>
+<info added on 2025-05-17T07:34:21.268Z>
+<info added on 2025-05-17T07:09:47.189Z>
+<details><timestamp>2025-05-17T07:09:43Z</timestamp><content>To systematically remove all debug logging statements across the codebase, follow this plan: First, use a grep search for `console.` to identify all files containing logging calls. In each file, delete any standalone `console.log`, `console.warn`, and `console.error` lines. For multi-statement or inline logging calls, refactor or remove as appropriate, ensuring no syntax breaks. After removal, run the full test suite and re-run `ts-prune` to ensure no regressions or orphaned code remain. This approach ensures a clean codebase and prevents accidental exposure of sensitive data in production environments.</content></details>
+<info added on 2025-05-17T07:34:15Z>
+<details><timestamp>2025-05-17T07:34:15Z</timestamp><content>For targeted debug-log removal, begin with `src/components/transcription/TranscriptionCanvas.tsx`. Remove all `console.log`, `console.warn`, and `console.error` statements. After removal, run `npx tsc --noEmit` to confirm there are no type errors. If the type check passes, proceed to remove debug logs from `src/components/TranscriptionBoard.tsx` and repeat the type-check. Once both files are cleaned and the project compiles without errors, close out subtask 7.5. This step-by-step approach ensures that debug logging is thoroughly removed from core components and that the codebase remains stable and secure.</content></details>
+</info added on 2025-05-17T07:34:21.268Z>
+
+## 6. Remove TranscriptionShapeTester Component [done]
+### Dependencies: None
+### Description: Delete TranscriptionShapeTester component and all references to it in the codebase.
+### Details:
+<info added on 2025-05-17T07:08:21.170Z>
+<details><timestamp>2025-05-17T07:08:17Z</timestamp><plan>To remove the TranscriptionShapeTester component, follow these steps: 1. Locate and delete the file at `src/components/transcription/TranscriptionShapeTester.tsx`. 2. Search the codebase for any references to the component, including imports and JSX usage. 3. Remove the import statement for TranscriptionShapeTester in `src/components/TranscriptionBoard.tsx` on line 5. 4. Remove the `<TranscriptionShapeTester />` usage in the JSX at line 23 of `TranscriptionBoard.tsx`. 5. After removal, run the test suite to ensure no regressions. 6. Run `ts-prune` to confirm no orphaned code or unused imports remain. This process ensures the component and all related code are fully removed, reducing technical debt and improving maintainability.</plan></details>
+</info added on 2025-05-17T07:08:21.170Z>
+
+## 7. Create Code Removal Checklist [deferred]
+### Dependencies: None
+### Description: Develop a comprehensive checklist for code removal to ensure systematic and thorough cleanup.
+### Details:
+Include checks for functionality, readability, security implications, and potential dependencies. Ensure the checklist covers verification that removed code doesn't affect core features.
+
+## 8. Document Removed Features [deferred]
+### Dependencies: None
+### Description: Create documentation of all removed features and code with rationale for removal.
+### Details:
+Include information about why code was removed, potential future reimplementation plans, and any architectural decisions that led to removal.
+
+## 9. Wait for Completion of Prerequisite Refactors [deferred]
+### Dependencies: None
+### Description: Ensure this task is completed after audit, token, logger, and transcription refactors.
+### Details:
+Coordinate with team to verify all prerequisite refactoring work is complete before proceeding with code removal.
+
+## 10. Remove Dev/Test Components [deferred]
+### Dependencies: None
+### Description: Remove LiveKitTest, TLDrawDebugger, TestControls, and other development/testing components identified in the audit.
+### Details:
+Verify these components are not used in production code paths before removal. Update any imports that reference these components.
+
+## 11. Remove Legacy TranscriptionCanvas [deferred]
+### Dependencies: None
+### Description: Remove the legacy TranscriptionCanvas component after verifying it's been fully replaced by the refactored version.
+### Details:
+Ensure all functionality has been migrated to the new implementation before removal.
+
+## 12. Remove Unused Utility Functions [deferred]
+### Dependencies: None
+### Description: Remove unused utility functions including useIsClient, INSTANCE_MARKER, findIOSDevices, getTokenInfo, etc.
+### Details:
+Check for any dependencies on these functions before removal. Update imports as needed.
+
+## 13. Implement Red-Green-Refactor Cycle [deferred]
+### Dependencies: None
+### Description: Apply the Red-Green-Refactor technique when removing code to ensure functionality is preserved.
+### Details:
+Write tests for critical functionality before removal, verify tests pass after removal, then refactor remaining code for clarity and maintainability.
+
+## 14. Run ts-prune After Each Removal [deferred]
+### Dependencies: None
+### Description: Re-run ts-prune after each significant code removal to identify any newly orphaned code.
+### Details:
+Create a systematic process to ensure each removal doesn't create new dead code. Document the process for future maintenance.
+

@@ -1,0 +1,11 @@
+# Task ID: 12
+# Title: Manual User Flow Validation
+# Status: pending
+# Dependencies: 3, 5, 9
+# Priority: high
+# Description: Manually verify all core user flows after major changes.
+# Details:
+Test joining a room, enabling video/audio, drawing, adding notes, starting/stopping transcription, and viewing live transcripts. Document any edge cases or issues.
+
+# Test Strategy:
+Manual testing of all core user flows. Document findings and issues.

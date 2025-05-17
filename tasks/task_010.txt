@@ -1,0 +1,61 @@
+# Task ID: 10
+# Title: Simplify Component Structure and State Flows
+# Status: pending
+# Dependencies: 2
+# Priority: medium
+# Description: Refactor component structure and state management for clarity and maintainability after dead code removal.
+# Details:
+Review and refactor component hierarchy focusing on MVP-level simplification. Remove redundant state management, flatten state structure where possible, and consolidate state flows. Apply React best practices for state management including keeping state minimal and avoiding duplication.
+
+# Test Strategy:
+Test component rendering and state updates. Verify no regressions in core features. Ensure state changes properly propagate through the component hierarchy.
+
+# Subtasks:
+## 1. Unify LiveKit Reconnection Strategy [pending]
+### Dependencies: None
+### Description: Choose between ConnectionManager-based token refresh or sessionStorage reload strategy and update code accordingly.
+### Details:
+
+
+## 2. Remove Redundant Reconnection Logic [pending]
+### Dependencies: None
+### Description: Delete the unused reconnection approach after standardizing on one strategy.
+### Details:
+
+
+## 3. Simplify Token Handling Logic [pending]
+### Dependencies: None
+### Description: Refactor redundant token state and validation logic in JoinRoomForm and page.tsx to streamline token management.
+### Details:
+
+
+## 4. Simplify Error Handling in JoinRoomForm [pending]
+### Dependencies: None
+### Description: Simplify verbose error handling in JoinRoomForm by consolidating redundant checks and improving user feedback.
+### Details:
+
+
+## 5. Simplify CollaborativeBoard Complexity [pending]
+### Dependencies: None
+### Description: Refactor CollaborativeBoard component to remove unnecessary memoization and ref tracking for better readability and performance.
+### Details:
+
+
+## 6. Flatten State Structure [pending]
+### Dependencies: None
+### Description: Identify and refactor deeply nested state structures to create a flatter, more maintainable state model.
+### Details:
+Review components with complex state and apply best practices to avoid deeply nested state objects. Prefer flat state structures that are easier to update and maintain.
+
+## 7. Implement useReducer for Complex State Logic [pending]
+### Dependencies: None
+### Description: Replace complex state update logic with useReducer hook where appropriate.
+### Details:
+Identify components with multiple related state variables or complex update patterns and refactor them to use the useReducer pattern for more predictable state management.
+
+## 8. Eliminate Redundant State [pending]
+### Dependencies: None
+### Description: Remove state variables that can be derived from existing props or state during rendering.
+### Details:
+Audit components to identify and eliminate redundant state that can be calculated during render instead of being stored and synchronized.
+
